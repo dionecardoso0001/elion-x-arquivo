@@ -1,0 +1,19 @@
+# Segurança — NUNCA commitar a API Key
+.env
+.env.local
+.env.production
+
+# Dependências
+node_modules/
+
+# Build e deploy temporário
+deploy/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
