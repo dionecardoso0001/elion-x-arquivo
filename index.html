@@ -210,9 +210,10 @@
     <button class="qa" id="qaCouncil">⚖ CONSELHO</button>
     <button class="qa" id="qaMarket">▦ MERCADO</button>
     <button class="qa" id="qaAgenda">AGENDA</button>
+    <button class="qa" id="qaCyber">⛨ CYBER</button>
     <button class="qa" id="qaBrain">⬡ PAINEL</button>
   </div>
-  <input type="file" id="docInput" accept=".pdf,.docx,.pptx,.txt,.md,.csv" hidden>
+  <input type="file" id="docInput" accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.json,.xml,.html,.htm,.yaml,.yml,.log,.ini,.cfg,.conf,.env,.sql,.sh,.ps1,.bat,.js,.mjs,.cjs,.ts,.tsx,.jsx,.py,.java,.cs,.c,.cpp,.h,.go,.rb,.php,.css" hidden>
 </footer>
 
 <!-- ▓▓ VISOR WEB — segunda tela embutida ▓▓ -->
@@ -232,6 +233,46 @@
     <div id="wvLoading"><span></span>estabelecendo conexão segura…</div>
   </div>
   <div class="wv-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+</div>
+
+<!-- ▓▓ MONITOR DE VÍDEO — segunda tela em forma de monitor de computador ▓▓ -->
+<div id="monitorWrap" hidden>
+  <div id="monitorBackdrop"></div>
+  <div id="monitorBolt" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div id="monitorSet">
+    <div class="mon-bezel">
+      <div class="mon-screen">
+        <iframe id="monFrame" title="monitor de vídeo" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        <div class="mon-glass" aria-hidden="true"></div>
+        <div class="mon-scan" aria-hidden="true"></div>
+        <div class="mon-boot" aria-hidden="true"><span></span></div>
+        <!-- carregado, mas em PAUSA — só toca quando o operador confirma -->
+        <button id="monReady" class="mon-overlay" title="clique ou diga 'sim' para iniciar">
+          <span class="mon-overlay-ring"><span class="mon-overlay-play">▶</span></span>
+          <span class="mon-overlay-txt">PRONTO PARA EXIBIR<br><b>diga “sim” ou clique para iniciar</b></span>
+        </button>
+        <!-- vídeo pausado a pedido (botão 🎙 falar) — aguardando o próximo comando -->
+        <div id="monPausedTag" class="mon-overlay mon-overlay-paused" aria-hidden="true">
+          <span class="mon-overlay-txt">⏸ PAUSADO — ESCUTANDO<br><b>diga “continua” ou “fecha o monitor”</b></span>
+        </div>
+      </div>
+      <div class="mon-chin">
+        <span class="mon-brand">E‑L‑I‑O‑N <b>VISION</b></span>
+        <span class="mon-led" aria-hidden="true"></span>
+      </div>
+    </div>
+    <div class="mon-neck" aria-hidden="true"></div>
+    <div class="mon-base" aria-hidden="true"></div>
+    <div class="mon-info">
+      <div class="mon-title" id="monTitle"></div>
+      <div class="mon-meta" id="monMeta"></div>
+      <div class="mon-actions">
+        <button id="monTalk" title="pausar e falar com o Elion">🎙 FALAR</button>
+        <button id="monYT" title="abrir no YouTube">↗ YOUTUBE</button>
+        <button id="monOff" title="desligar o monitor">⏻ DESLIGAR</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ▓▓ OVERLAY DE ARRASTAR DOCUMENTO ▓▓ -->
@@ -315,6 +356,7 @@ window.ELX = {
 <script src="assets/avatar.js"></script>
 <script src="assets/voice.js"></script>
 <script src="assets/face.js"></script>
+<script src="assets/voiceid.js"></script>
 <script src="assets/quadrants.js"></script>
 <script src="assets/agent.js"></script>
 </body>

@@ -525,39 +525,130 @@
     }
   }
 
-  /* ═════════ LIP-SYNC pelo áudio (mesmo tap da esfera) ═════════ */
-  const VISEMES = ['viseme_aa', 'viseme_E', 'viseme_O', 'viseme_U', 'viseme_PP', 'jawOpen', 'mouthFunnel'];
-  let prevTreble = 0, ppPulse = 0;
+  /* ═════════ LIP-SYNC por FORMANTES ═════════
+     A versão antiga movia a boca com senóides do relógio — parecia falar, mas
+     não acompanhava o som. Agora cada quadro classifica o fonema pelo espectro:
+     ELX.audio.voice() devolve dois eixos contínuos (abertura × anterioridade)
+     que posicionam a boca no ESPAÇO VOCÁLICO, mais sibilância/fricativa/
+     transiente para as consoantes.
+
+     Cada vogal é um ponto nesse plano; a mistura é feita por peso gaussiano da
+     distância — é isso que produz a CO-ARTICULAÇÃO (a boca passa por formas
+     intermediárias ao ir de /i/ para /a/, como um rosto real). */
+  /* Pontos-alvo CALIBRADOS: não são valores teóricos, e sim a leitura real do
+     analisador para cada vogal do português (medida com espectros de formantes
+     conhecidos — /a/ 700·1200, /ɛ/ 550·1850, /e/ 420·2100, /i/ 300·2350,
+     /ɔ/ 570·950, /o/ 450·850, /u/ 330·750 Hz). Calibrar contra a medição, e não
+     contra a teoria, é o que faz o viseme certo vencer em todas as vogais. */
+  const VOWELS = [                       //         abertura, anterioridade
+    { m: 'viseme_aa', o: 0.84, f: 0.30, jaw: 1.00 },  // /a/  — bem aberta
+    { m: 'viseme_E',  o: 0.42, f: 0.75, jaw: 0.55 },  // /e/ /ɛ/ — entreaberta, esticada
+    { m: 'viseme_I',  o: 0.00, f: 0.97, jaw: 0.20 },  // /i/  — fechada, sorriso
+    { m: 'viseme_O',  o: 0.48, f: 0.12, jaw: 0.60 },  // /o/ /ɔ/ — arredondada
+    { m: 'viseme_U',  o: 0.12, f: 0.04, jaw: 0.22 },  // /u/  — bico, projetada
+  ];
+  const CONSO = ['viseme_PP', 'viseme_FF', 'viseme_SS', 'viseme_CH', 'viseme_TH', 'viseme_kk', 'viseme_nn', 'viseme_DD', 'viseme_RR', 'viseme_sil'];
+  const MOUTH_EXTRA = ['jawOpen', 'mouthFunnel', 'mouthPucker', 'mouthStretchLeft', 'mouthStretchRight',
+    'mouthPressLeft', 'mouthPressRight', 'mouthShrugLower', 'mouthLowerDownLeft', 'mouthLowerDownRight',
+    'mouthUpperUpLeft', 'mouthUpperUpRight'];
+  /* Morphs PROIBIDOS no lip-sync: todos puxam os lábios para DENTRO da boca.
+     Acionados junto com jawOpen davam o efeito "banguela" — o maxilar abria e o
+     lábio inferior sumia para dentro. Ficam travados em zero. */
+  const LIP_ROLL = ['mouthClose', 'mouthRollLower', 'mouthRollUpper'];
+  const ALL_MOUTH = [...VOWELS.map(v => v.m), ...CONSO, ...MOUTH_EXTRA, ...LIP_ROLL];
+  const SIGMA2 = 2 * 0.26 * 0.26;        // largura do blend entre vogais vizinhas
+
+  let hasMorph = null;                   // quais morphs o GLB realmente tem
+  function morphExists(name) {
+    if (!hasMorph) {
+      hasMorph = new Set();
+      for (const m of morphMeshes) for (const k in m.morphTargetDictionary) hasMorph.add(k);
+    }
+    return hasMorph.has(name);
+  }
+  /** só aciona o morph se ele existir no modelo (GLBs variam de padrão) */
+  function driveIf(name, v, atk, rel) { if (morphExists(name)) drive(name, v, atk, rel); }
+
+  const lip = { open: 0.4, front: 0.5, lvl: 0 };
+
   function updateMouth(dt, st, t) {
     const speakingNow = st === 'speaking' || st === 'live';
-    const b = ELX.audio.bands();
-    let lvl = speakingNow ? b.level : 0;
-    if (lvl < 0.05) lvl = 0;                 // portão de ruído
+    const a = ELX.audio.voice ? ELX.audio.voice() : { level: 0 };
+    let lvl = speakingNow ? a.level : 0;
+    if (lvl < 0.045) lvl = 0;                       // portão de ruído
 
-    if (!lvl) {                              // silêncio → boca fecha macio
-      for (const v of VISEMES) drive(v, 0, 0.5, 0.28);
+    if (!lvl) {                                     // silêncio → boca repousa
+      for (const n of ALL_MOUTH) driveIf(n, 0, 0.5, 0.22);
+      driveIf('viseme_sil', 0.15, 0.2, 0.2);
+      lip.lvl += (0 - lip.lvl) * 0.3;
       return;
     }
-    const tot = b.bass + b.mid + b.treble + 1e-4;
-    const bassShare = b.bass / tot, trebShare = b.treble / tot;
 
-    /* variação de articulação: mistura os visemes ao longo do tempo
-       para a boca não virar um "abre-fecha" monótono */
-    const wob1 = 0.5 + 0.5 * Math.sin(t * 11.3 + 1.7);
-    const wob2 = 0.5 + 0.5 * Math.sin(t * 7.9);
+    /* Suavização dos EIXOS (não das formas): o alvo articulatório muda rápido
+       na sílaba, mas a musculatura tem inércia — sem isto a boca "treme". */
+    const kOpen = a.open > lip.open ? 0.55 : 0.34;  // abre rápido, fecha um pouco mais devagar
+    lip.open  += (a.open  - lip.open)  * kOpen;
+    lip.front += (a.front - lip.front) * 0.38;
+    lip.lvl   += (lvl - lip.lvl) * (lvl > lip.lvl ? 0.6 : 0.3);
 
-    /* consoantes: estouro de agudos → lábios se tocam (P/B/F) */
-    const dT = b.treble - prevTreble; prevTreble = b.treble;
-    if (dT > 0.14) ppPulse = 1;
-    ppPulse = Math.max(0, ppPulse - dt * 9);
+    /* consoantes tiram a boca do modo vogal */
+    const sib = Math.min(1, a.sib * (1 - a.voiced * 0.5));   // /s/ /ʃ/ — dentes, boca quase fechada
+    const fric = Math.min(1, a.fric);                        // /f/ /v/ — lábio no dente
+    const stop = a.burst;                                    // /p/ /b/ — lábios se tocam e soltam
+    const consonant = Math.min(1, sib * 0.9 + fric * 0.7 + stop * 0.85);
+    const vowelGain = lip.lvl * (1 - consonant * 0.65);
 
-    drive('viseme_aa',  Math.min(0.90, lvl * 1.35 * (0.45 + 0.55 * wob1)), 0.62, 0.30);
-    drive('jawOpen',    Math.min(0.52, lvl * 0.70 * (0.55 + 0.45 * wob1)), 0.62, 0.30);
-    drive('viseme_E',   Math.min(0.65, trebShare * lvl * 2.1 * wob2),      0.55, 0.28);
-    drive('viseme_O',   Math.min(0.70, bassShare * lvl * 1.9 * (1 - wob2)),0.55, 0.28);
-    drive('viseme_U',   Math.min(0.32, bassShare * lvl * 0.8 * (1 - wob1)),0.48, 0.25);
-    drive('mouthFunnel',Math.min(0.28, bassShare * lvl * 0.55),            0.48, 0.25);
-    drive('viseme_PP',  ppPulse * 0.60,                                    0.88, 0.55);
+    /* mistura vocálica por proximidade no plano (co-articulação) */
+    let sum = 0; const w = new Array(VOWELS.length);
+    for (let i = 0; i < VOWELS.length; i++) {
+      const v = VOWELS[i];
+      const d2 = (lip.open - v.o) ** 2 + (lip.front - v.f) ** 2;
+      w[i] = Math.exp(-d2 / SIGMA2);
+      sum += w[i];
+    }
+    let jawTarget = 0;
+    for (let i = 0; i < VOWELS.length; i++) {
+      const v = VOWELS[i], peso = w[i] / sum;
+      driveIf(v.m, Math.min(0.95, peso * vowelGain * 1.35), 0.62, 0.3);
+      jawTarget += peso * v.jaw;
+    }
+
+    /* MANDÍBULA: seque a abertura real da vogal e a energia — é o que dá o
+       "peso" da fala. Consoantes fecham o maxilar. */
+    driveIf('jawOpen', Math.min(0.62, jawTarget * lip.lvl * 0.78 * (1 - consonant * 0.7)), 0.66, 0.32);
+
+    /* arredondamento: /o/ /u/ projetam os lábios */
+    const round = Math.max(0, 1 - lip.front * 1.6) * lip.lvl;
+    driveIf('mouthFunnel', Math.min(0.45, round * 0.6), 0.5, 0.26);
+    driveIf('mouthPucker', Math.min(0.40, round * 0.5 * (1 - lip.open)), 0.5, 0.26);
+
+    /* estiramento: /i/ /e/ puxam os cantos da boca */
+    const spread = Math.max(0, lip.front - 0.6) * 2.2 * lip.lvl;
+    driveIf('mouthStretchLeft',  Math.min(0.35, spread * 0.5), 0.5, 0.26);
+    driveIf('mouthStretchRight', Math.min(0.35, spread * 0.5), 0.5, 0.26);
+
+    /* LÁBIO INFERIOR — o que impedia o rosto de parecer banguela.
+       Com jawOpen sozinho o maxilar desce mas o lábio fica "colado" na gengiva,
+       dando a impressão de estar sendo engolido. Estes dois morphs acompanham a
+       abertura: o inferior desce junto com o queixo e é empurrado para FORA. */
+    const jawNow = cur['jawOpen'] || 0;
+    driveIf('mouthLowerDownLeft',  Math.min(0.42, jawNow * 0.62), 0.6, 0.3);
+    driveIf('mouthLowerDownRight', Math.min(0.42, jawNow * 0.62), 0.6, 0.3);
+    driveIf('mouthShrugLower',     Math.min(0.30, jawNow * 0.34 + round * 0.18), 0.5, 0.28);
+    // lábio superior sobe de leve nas vogais abertas — evita boca "de peixe"
+    driveIf('mouthUpperUpLeft',  Math.min(0.22, lip.open * lip.lvl * 0.26), 0.5, 0.28);
+    driveIf('mouthUpperUpRight', Math.min(0.22, lip.open * lip.lvl * 0.26), 0.5, 0.28);
+
+    /* consoantes — PP contido: no padrão RPM ele já comprime bastante os lábios,
+       e em excesso lê como boca "sumindo" em vez de fechar para /p/ /b/ */
+    driveIf('viseme_SS', Math.min(0.7, sib * 0.8), 0.8, 0.4);
+    driveIf('viseme_CH', Math.min(0.5, sib * 0.4 * (1 - lip.front)), 0.7, 0.4);
+    driveIf('viseme_FF', Math.min(0.55, fric * 0.65), 0.7, 0.4);
+    driveIf('viseme_PP', Math.min(0.34, stop * 0.38), 0.85, 0.5);
+    driveIf('viseme_sil', 0, 0.4, 0.3);
+
+    /* trava de segurança: nada pode enrolar os lábios para dentro */
+    for (const n of LIP_ROLL) driveIf(n, 0, 0.9, 0.9);
   }
 
   /* ── humor por estado ── */
@@ -653,7 +744,20 @@
     location.reload();
   });
 
-  ELX.avatar = { get active() { return active; }, enable: () => applyMode('face'), disable: () => applyMode('sphere'), toggle: () => applyMode(active ? 'sphere' : 'face') };
+  ELX.avatar = {
+    get active() { return active; },
+    enable: () => applyMode('face'), disable: () => applyMode('sphere'),
+    toggle: () => applyMode(active ? 'sphere' : 'face'),
+    /** valores atuais dos morphs (diagnóstico do lip-sync) */
+    morphs(filtro) {
+      const out = {};
+      for (const k in cur) {
+        if (filtro && !new RegExp(filtro, 'i').test(k)) continue;
+        if (cur[k] > 0.001) out[k] = +cur[k].toFixed(3);
+      }
+      return out;
+    },
+  };
 
   /* restaura a escolha do operador */
   if (localStorage.getItem(LS_MODE) === 'face') applyMode('face');

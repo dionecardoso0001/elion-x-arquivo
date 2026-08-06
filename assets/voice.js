@@ -16,6 +16,8 @@
 
   const VOICE_CFG = {};       // vazio → servidor decide (EDGE_VOICE no .env)
 
+  let lipAn = null, lipData = null;   // tap DEDICADO ao lip-sync (alta resolução, resposta rápida)
+
   function ensureCtx() {
     if (!ctx) {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -24,6 +26,14 @@
       analyser.smoothingTimeConstant = 0.74;
       freqData = new Uint8Array(analyser.frequencyBinCount);
       timeData = new Uint8Array(analyser.fftSize);
+      // O tap da esfera é suavizado demais (0.74) e de baixa resolução para
+      // distinguir vogais. O lip-sync precisa do oposto: janela longa (resolve
+      // formantes ~23 Hz/bin) e suavização mínima (a boca reage no mesmo
+      // instante da sílaba, sem atraso perceptível).
+      lipAn = ctx.createAnalyser();
+      lipAn.fftSize = 2048;
+      lipAn.smoothingTimeConstant = 0.12;
+      lipData = new Uint8Array(lipAn.frequencyBinCount);
     }
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
@@ -44,6 +54,89 @@
     return {
       bass: curve(avg(1, 7)), mid: curve(avg(7, 44)),
       treble: curve(avg(44, Math.min(n, 140))), level: curve(avg(1, Math.min(n, 140))),
+    };
+  };
+
+  /* ═════════ ANÁLISE VOCÁLICA — o que move os lábios do avatar ═════════
+     Vogais não se distinguem por "grave/agudo", e sim pelos dois primeiros
+     FORMANTES (ressonâncias do trato vocal):
+       F1 acompanha a ABERTURA da boca  (baixo = fechada /i,u/ · alto = aberta /a/)
+       F2 acompanha a POSIÇÃO da língua (baixo = arredondada /u,o/ · alto = esticada /i,e/)
+     Em vez de estimar F1/F2 por pico (instável a 60 fps), medimos a energia em
+     faixas centradas nessas regiões e derivamos dois eixos contínuos —
+     abertura × anterioridade — que posicionam a boca no espaço vocálico.
+     Devolve também sibilância (S/CH), fricativa labial (F/V) e transientes
+     (P/B/T) para as consoantes. */
+  const lipState = { prevE: 0, burst: 0, silMs: 0 };
+
+  ELX.audio.voice = function () {
+    const nul = { level: 0, open: 0, front: 0.5, voiced: 0, sib: 0, fric: 0, burst: 0 };
+    if (simOn) {                       // fallback sem áudio real: só energia simulada
+      const b = ELX.audio.bands();
+      return { level: b.level, open: 0.5 + 0.3 * Math.sin(performance.now() / 190), front: 0.5, voiced: b.level, sib: 0, fric: 0, burst: 0 };
+    }
+    if (!lipAn) return nul;
+    lipAn.getByteFrequencyData(lipData);
+
+    const sr = (ctx && ctx.sampleRate) || 48000;
+    const binHz = sr / lipAn.fftSize;
+    const hz2bin = f => Math.max(0, Math.min(lipData.length - 1, Math.round(f / binHz)));
+    // energia média (0..1) numa faixa de Hz
+    const band = (lo, hi) => {
+      const a = hz2bin(lo), b = Math.max(a + 1, hz2bin(hi));
+      let s = 0; for (let i = a; i < b; i++) s += lipData[i];
+      return s / ((b - a) * 255);
+    };
+    // espectro suavizado (média móvel de 3 bins) — apaga os harmônicos de f0 que
+    // criariam picos falsos, mantendo a envoltória onde vivem os formantes
+    const sm = i => (lipData[i - 1] + lipData[i] + lipData[i + 1]) / 3;
+    /** pico dominante numa faixa, com interpolação parabólica (precisão sub-bin) */
+    const pico = (lo, hi) => {
+      const a = Math.max(1, hz2bin(lo)), b = Math.min(lipData.length - 2, hz2bin(hi));
+      let bi = a, bv = -1;
+      for (let i = a; i <= b; i++) { const v = sm(i); if (v > bv) { bv = v; bi = i; } }
+      if (bv <= 0) return { hz: 0, amp: 0 };
+      const l = sm(bi - 1), c = sm(bi), r = sm(bi + 1);
+      const d = (l - r) / (2 * (l - 2 * c + r) || 1e-6);          // vértice da parábola
+      return { hz: (bi + Math.max(-1, Math.min(1, d))) * binHz, amp: bv / 255 };
+    };
+
+    const sibE = band(4200, 8500);  // chiado → /s/ /z/ /ʃ/ /ʒ/
+    const fricE = band(1200, 2600); // ruído labiodental /f/ /v/
+    const lowE = band(80, 300);     // sonoridade (f0 e harmônicos graves)
+    const voiceE = band(250, 3300); // faixa útil da fala
+    const level = Math.min(1, voiceE * 2.6);
+
+    /* F1 e F2 por PICO, não por razão de bandas: em vogais posteriores (/u/, /o/)
+       o F2 fica em ~750-950 Hz e invadiria qualquer faixa fixa de F1, fazendo a
+       boca parecer aberta quando está arredondada. Buscar F2 acima de F1 evita
+       isso e é como fonética mede vogais de verdade. */
+    const P1 = pico(240, 1000);
+    const P2 = pico(Math.max(P1.hz + 260, 700), 3300);
+    const f1 = P1.hz || 500, f2 = P2.hz || 1400;
+
+    const norm = (v, lo, hi) => Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+    // eixo 1 — ABERTURA: F1 de ~270 Hz (fechada /i,u/) a ~780 Hz (aberta /a/)
+    const open = norm(f1, 270, 780);
+    // eixo 2 — ANTERIORIDADE: F2 de ~700 Hz (arredondada /u,o/) a ~2400 Hz (esticada /i/)
+    const front = norm(f2, 700, 2400);
+
+    // sonoridade: vogais têm energia grave forte; sibilantes quase não têm
+    const voiced = Math.min(1, (lowE * 2.4) / (sibE + 0.05));
+    const sib = Math.min(1, (sibE / (voiceE * 0.5 + 0.02)) * 0.9);
+
+    // transiente (oclusiva P/B/T/K): subida abrupta de energia após um vale
+    const dE = level - lipState.prevE;
+    lipState.prevE = level;
+    if (level < 0.06) lipState.silMs += 16; else lipState.silMs = 0;
+    if (dE > 0.12 && lipState.silMs === 0) lipState.burst = 1;
+    lipState.burst = Math.max(0, lipState.burst - 0.14);
+
+    return {
+      level, open, front, voiced,
+      sib,
+      fric: Math.min(1, (fricE / (voiceE + 1e-5)) * (1 - voiced) * 1.6),
+      burst: lipState.burst,
     };
   };
 
@@ -93,6 +186,7 @@
     player.crossOrigin = 'anonymous';
     const src = ensureCtx().createMediaElementSource(player);
     src.connect(analyser);
+    src.connect(lipAn);            // mesmo sinal, tap próprio p/ o lip-sync
     src.connect(ctx.destination);
     return player;
   }
@@ -195,11 +289,22 @@
   /* ═════════ STT — reconhecimento de voz ═════════ */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let rec = null, sttActive = false;
+  // escuta suspensa (cadastro de voz, vídeo no monitor) — declarada AQUI porque
+  // startSTT() logo abaixo a consulta; suspendListening/resumeListening usam a mesma
+  let listenSuspended = false, suspendedConv = false, suspendedLive = false;
   const micBtn = document.getElementById('micBtn');
   const cmd = document.getElementById('cmd');
 
   function startSTT() {
     if (!SR) return ELX.toast?.('Reconhecimento de voz não suportado. Use Chrome ou Edge.', 'red');
+    /* TRAVA DA SUSPENSÃO — precisa ficar AQUI, não em quem chama.
+       O laço da conversa religa o STT sozinho por temporizador (~300ms) em
+       dois pontos. Sem esta linha, suspendListening() era desfeito logo em
+       seguida e a escuta voltava: no cadastro de voz o VAD interrompia a
+       própria pessoa sendo gravada, e no monitor o áudio do vídeo vazava de
+       volta para o agente. resumeListening() limpa a flag ANTES de chamar,
+       então o retorno normal continua funcionando. */
+    if (listenSuspended) return;
     if (sttActive) return;
     rec = new SR();
     rec.lang = 'pt-BR';
@@ -525,9 +630,73 @@
         }
         case 'enroll_face': {
           try {
-            const r = await ELX.cam.enroll(a.name || 'pessoa', a.relation || '');
+            if (!a.name || !String(a.name).trim()) return 'ERRO: preciso do NOME da pessoa antes de memorizar o rosto — pergunte quem é e chame de novo com o nome.';
+            const r = await ELX.cam.enroll(a.name, a.relation || '');
             return r.ok ? `Rosto de ${a.name} memorizado no reconhecimento facial.` : 'Não consegui memorizar: ' + r.msg;
           } catch (e) { return 'ERRO ao cadastrar rosto: ' + e.message; }
+        }
+        case 'enroll_voice': {
+          // no modo AO VIVO o microfone já está aberto: avisa e escuta em seguida
+          try {
+            const seg = Math.min(Math.max(a.seconds || 3, 2), 8);
+            // sem nome NÃO cadastra: o fallback 'pessoa' criava um perfil-fantasma
+            // que competia com os reais na identificação (ficou a 4 Hz do Theo)
+            if (!a.name || !String(a.name).trim()) return 'ERRO: preciso do NOME da pessoa antes de memorizar a voz — pergunte com quem fala e chame de novo com o nome.';
+            const r = await ELX.voiceid.enroll(a.name, a.relation || '', seg * 1000, { usarUltima: !!a.use_last_voice });
+            return r.ok
+              ? `Voz de ${a.name} memorizada (${r.msg}). Confirme com naturalidade — daqui em diante você a reconhece.`
+              : `Não consegui memorizar a voz: ${r.msg}. Peça para falar mais e mais perto do microfone.`;
+          } catch (e) { return 'ERRO ao cadastrar a voz: ' + e.message; }
+        }
+        case 'identify_voice': {
+          try {
+            const seg = Math.min(Math.max(a.seconds || 2, 1), 6);
+            const r = await ELX.voiceid.identify(seg * 1000);
+            return ELX.voiceid.descrever(r) || 'Não consegui identificar — peça para a pessoa falar um pouco mais.';
+          } catch (e) { return 'ERRO ao identificar a voz: ' + e.message; }
+        }
+        /* VIGILÂNCIA e INVESTIGAÇÃO — no modo LIVE quem executa é o navegador.
+           Estavam anunciadas ao modelo sem executor aqui: ele chamava, não
+           recebia nada e dizia ao operador que o modo estava fora do ar. */
+        case 'watch_check': {
+          const u = '/api/watch?acao=check' + (a.varrer ? '&varrer=1' : '');
+          const r = await fetch(u).then(x => x.json());
+          if (r.error) return 'ERRO: ' + r.error;
+          if (!r.total) {
+            return r.alvos
+              ? `Nenhuma novidade nos ${r.alvos} temas sob vigilância. Última varredura: ${r.ultimaVarredura || 'ainda não rodou'}. Diga isso de forma breve — nada novo é boa notícia, sem rodeio.`
+              : 'Nenhum tema sob vigilância ainda. Ofereça colocar os clientes e assuntos dele em monitoramento.';
+          }
+          return r.texto + '\n\nRelate em fala natural, do mais relevante para o menos. Destaque PRAZOS (licitação com data de encerramento é urgente) e o que ainda não virou notícia.';
+        }
+        case 'watch_add': {
+          const termo = String(a.termo || '').trim();
+          if (!termo) return 'ERRO: informe o que devo colocar sob vigilância.';
+          const r = await fetch('/api/watch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ termo, fontes: a.fontes, uf: a.uf }) }).then(x => x.json());
+          if (r.error) return 'ERRO: ' + r.error;
+          return r.jaExistia
+            ? `"${termo}" já estava sob vigilância. Confirme e ofereça mostrar as novidades.`
+            : `Vigilância ativada para "${termo}" — agora são ${r.total} temas. Estou registrando o que JÁ existe como histórico; daqui em diante só aviso o que for NOVO. Varre sozinho a cada 3 horas.`;
+        }
+        case 'watch_manage': {
+          const act = String(a.action || 'list').toLowerCase();
+          if (act === 'remove') {
+            const r = await fetch(`/api/watch?termo=${encodeURIComponent(a.termo || '')}`, { method: 'DELETE' }).then(x => x.json());
+            return r.ok ? `Removido da vigilância. Restam ${r.total} temas.` : `Não encontrei "${a.termo}" na vigilância.`;
+          }
+          const r = await fetch('/api/watch?acao=list').then(x => x.json());
+          if (!r.total) return 'Nenhum tema sob vigilância ainda.';
+          return `${r.total} temas sob vigilância: ${r.alvos.map(x => x.termo).join(', ')}. ` +
+            `${r.pendentes ? r.pendentes + ' novidade(s) pendente(s).' : 'Sem novidades pendentes.'} Última varredura: ${r.ultimaVarredura || 'ainda não rodou'}.`;
+        }
+        case 'deep_investigate': {
+          const q = String(a.termo || a.query || '').trim();
+          if (!q) return 'ERRO: informe o que devo investigar.';
+          const r = await fetch(`/api/deep-investigate?q=${encodeURIComponent(q)}` +
+            `${a.fontes ? '&fontes=' + encodeURIComponent(a.fontes) : ''}${a.uf ? '&uf=' + encodeURIComponent(a.uf) : ''}`).then(x => x.json());
+          if (r.error) return 'ERRO: ' + r.error;
+          if (r.noticias?.length) ELX.news?.render?.(r.noticias.map(n => ({ src: n.fonte, title: n.titulo, link: n.url, ts: Date.now() })));
+          return r.relatorio + '\n\nApresente em fala natural, separando REGISTRO OFICIAL de COBERTURA DE IMPRENSA. Destaque o que ainda NÃO virou notícia — é aí que está o valor.';
         }
         case 'analyze_camera': {
           try {
@@ -619,6 +788,25 @@
           if (r.acumulado && r.proxEstimativa) s += ` Acumulou! Próximo estimado em R$ ${Number(r.proxEstimativa).toLocaleString('pt-BR')}.`;
           return s + ' Apresente ao operador de forma natural, sem incentivar apostas.';
         }
+        case 'youtube_watch': {
+          const q = (a.query || '').trim();
+          if (!q) return 'Sobre o que o senhor quer o vídeo?';
+          const f = (a.filtro || a.duracao || a.periodo || '').toLowerCase();
+          const r = await fetch(`/api/youtube?q=${encodeURIComponent(q)}&f=${encodeURIComponent(f)}&n=12`).then(x => x.json());
+          if (r.error || !r.videos?.length) return 'Não consegui buscar no YouTube agora: ' + (r.error || 'sem resultados');
+          const i = Math.min(Math.max((a.escolher || 1) - 1, 0), r.videos.length - 1);
+          const v = r.videos[i];
+          ELX.monitor?.open(v, r.videos);
+          const outros = r.videos.filter(x => x.id !== v.id).slice(0, 4)
+            .map((x, n) => `${n + 1}. [${x.duracao}] ${x.titulo} — ${x.canal}`).join('; ');
+          return `Monitor aberto com "${v.titulo}" do canal ${v.canal} (${v.duracao}${v.views ? ', ' + v.views : ''}) — CARREGADO E EM PAUSA, ainda não tocando. ` +
+            `Outros resultados: ${outros}. Anuncie o que encontrou em fala natural, ofereça trocar por outro se não for o que ele queria, e PERGUNTE se já está pronto para assistir. Só chame monitor_play depois que ele confirmar.`;
+        }
+        case 'monitor_play': {
+          const ok = ELX.monitor?.play?.();
+          if (!ok) return 'Não há vídeo carregado no monitor agora.';
+          return 'Exibição iniciada. A audição fica suspensa até o operador usar o botão de comando do monitor ou fechar a tela — apenas confirme brevemente e não espere mais nada por voz.';
+        }
         case 'cyber_scan': {
           const r = await fetch(`/api/cyber?focus=${encodeURIComponent(a.focus || 'geral')}`).then(x => x.json());
           if (r.error) return 'Falha na varredura: ' + r.error;
@@ -654,7 +842,9 @@
         live.audio = new Audio();
         live.audio.srcObject = e.streams[0];
         live.audio.play().catch(() => {});
-        ensureCtx().createMediaStreamSource(e.streams[0]).connect(analyser); // esfera reage à voz LIVE
+        const liveSrc = ensureCtx().createMediaStreamSource(e.streams[0]);
+        liveSrc.connect(analyser);   // esfera reage à voz LIVE
+        liveSrc.connect(lipAn);      // lip-sync também, no modo AO VIVO
       };
 
       /* canal de eventos: function calling — o LIVE preenche os quadrantes de verdade */
@@ -770,11 +960,43 @@
     if (e.key === 'Escape') { ELX.agent?.interrupt('esc'); if (!conv.on) ELX.setState('idle'); }
   });
 
+  /* ═════════ SUSPENDER/RETOMAR AUDIÇÃO — usado pelo Monitor de vídeo ═════════
+     Quando um vídeo toca no monitor, o som vaza pelos alto-falantes e o
+     microfone capta essa voz como se fosse o operador (falso barge-in, ele
+     "ouve" o vídeo e reage). Solução: desligar de vez a captação (STT + VAD +
+     a faixa de áudio do modo AO VIVO) enquanto o vídeo toca, e só devolver
+     quando o operador pedir a palavra (push-to-talk) ou fechar o monitor. */
+  function suspendListening() {
+    if (listenSuspended) return;
+    listenSuspended = true;
+    suspendedConv = conv.on;
+    suspendedLive = live.on;
+    stopSTT();
+    if (conv.on) vadStop();                                    // solta o tap isolado do mic
+    if (live.on && live.mic) live.mic.getTracks().forEach(t => t.enabled = false); // corta o envio, mantém a sessão
+    if (ELX.state === 'listening') ELX.setState('idle');
+  }
+  function resumeListening() {
+    if (!listenSuspended) return;
+    listenSuspended = false;
+    if (suspendedConv && conv.on) { vadStart(); if (ELX.state === 'idle') startSTT(); }
+    if (suspendedLive && live.on && live.mic) live.mic.getTracks().forEach(t => t.enabled = true);
+  }
+  /** escuta UM comando (usado pelo botão "🎙 falar" do monitor, com o vídeo em pausa) */
+  function pushToTalkOnce() {
+    if (!SR) { ELX.toast?.('Reconhecimento de voz não suportado. Use Chrome ou Edge.', 'red'); return false; }
+    stopSTT();
+    startSTT();
+    return true;
+  }
+
   ELX.voice = {
     speak, stop: stopSpeak, hold,
     startSTT, stopSTT, ensureCtx,
+    suspendListening, resumeListening, pushToTalkOnce,
     cfg: VOICE_CFG,
     get speaking() { return speaking; },
     get conv() { return conv.on; },
+    get listenSuspended() { return listenSuspended; },
   };
 })();

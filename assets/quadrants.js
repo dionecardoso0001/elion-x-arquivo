@@ -652,6 +652,29 @@
     },
   };
 
+  /* ═════════════════ CYBER DEFENSE GRID — console tático de segurança ═════════════════ */
+  let cyberWin = null;
+  ELX.cyber = {
+    open() {
+      try { cyberWin = window.open('/cyber.html', 'elion-cyber'); } catch { cyberWin = null; }
+      if (cyberWin) { ELX.toast('Cyber Defense Grid aberto — monitoramento de ameaças ativo.', 'green'); return 'window'; }
+      webOpenLocal('/cyber.html?v=' + Date.now(), 'CYBER DEFENSE GRID · DETECÇÃO DE AMEAÇAS');
+      return 'visor';
+    },
+    isOpen() { return !!(cyberWin && !cyberWin.closed) || (!wv.hidden && /cyber\.html/.test(wvUrl)); },
+    close() {
+      let closed = false;
+      if (cyberWin && !cyberWin.closed) { try { cyberWin.close(); } catch {} closed = true; }
+      cyberWin = null;
+      if (!wv.hidden && /cyber\.html/.test(wvUrl)) { wvHide(); closed = true; }
+      return closed;
+    },
+  };
+  // o ✕ dentro do console (quando carregado no visor) pede o fechamento para cá
+  window.addEventListener('message', e => {
+    if (e.data && e.data.elx === 'cyber-close') ELX.cyber.close();
+  });
+
   /* ═════════════════ CONTROLE UNIVERSAL DE TELAS — abrir/fechar por voz (sem mouse) ═════════════════ */
   ELX.screens = {
     // abre subtelas que NÃO chegam prontas por seus próprios eventos ui
@@ -660,6 +683,7 @@
         case 'camera':        camStart().then(ok => { if (ok) camExpand(true); }); break; // abre já AMPLIADA
         case 'whatsapp':      ELX.whatsapp.open(); break;
         case 'brain':         ELX.brain.open(); break;
+        case 'cyber':         ELX.cyber.open(); break;
         case 'market':        ELX.market.study(opts.symbol || opts.query || ''); break;
         case 'council':       document.getElementById('qaCouncil')?.click(); break;
         case 'email_connect': ELX.email.connect(); break;
@@ -674,8 +698,14 @@
         case 'camera':
           if (camOn || ELX.cam.expanded) { camStop(); ELX.toast('Câmera desligada.', 'green'); } else ELX.toast('A câmera já está desligada, Senhor.', '');
           break;
+        case 'monitor':
+          if (!ELX.monitor?.close()) ELX.toast('O monitor já está desligado, Senhor.', '');
+          break;
         case 'brain':
           if (!ELX.brain.close()) ELX.toast('O Segundo Cérebro não está aberto.', '');
+          break;
+        case 'cyber':
+          if (!ELX.cyber.close()) ELX.toast('O console de defesa cibernética não está aberto.', '');
           break;
         case 'whatsapp': case 'site': case 'market': case 'carteira':
         case 'email': case 'conselho': case 'curso': case 'visor':
@@ -685,13 +715,15 @@
           ELX.toast('Esse painel é fixo na tela, Senhor — fica sempre visível.', '');
           break;
         case 'all':
+          ELX.monitor?.close();
           if (visorOpen) wvHide();
           ELX.brain.close();
           if (camOn) camStop();
           ELX.toast('Telas fechadas.', 'green');
           break;
         default: // "fecha isso", "pode parar", "finaliza" → fecha o que estiver aberto, por prioridade
-          if (visorOpen) wvHide();
+          if (ELX.monitor?.on) ELX.monitor.close();   // o monitor cobre tudo → é o primeiro a sair
+          else if (visorOpen) wvHide();
           else if (ELX.brain.isOpen()) ELX.brain.close();
           else if (camOn) { camStop(); ELX.toast('Câmera desligada.', 'green'); }
           else ELX.toast('Nenhuma tela aberta para fechar, Senhor.', '');
@@ -934,5 +966,89 @@
       `<div class="mkt-disc" style="margin-top:14px">Varredura defensiva heurística (só leitura) · ${wesc(r.at)} · não substitui antivírus corporativo</div>`;
     wvReader.scrollTop = 0;
   }
-  ELX.cyber = { render: cyberRender };
+  ELX.cyber.render = cyberRender; // agrega ao ELX.cyber já criado acima (open/close do console)
+
+  /* ═════════════════ MONITOR DE VÍDEO — YouTube numa "tela de computador" ═════════════════
+     Abre como um CRT ligando, mas o vídeo fica CARREGADO EM PAUSA — só toca
+     quando o operador confirma ("sim"/"pode"). Isso evita o problema clássico
+     de assistente de voz: o som do vídeo vazando pelos alto-falantes e sendo
+     captado pelo microfone como se fosse o operador falando. Enquanto toca, a
+     audição fica suspensa (ELX.voice.suspendListening); o botão "🎙 falar" some
+     pausa o vídeo, devolve a palavra por um comando, e o operador manda tocar
+     de novo. Desliga num FLASH DE RELÂMPAGO. */
+  const monWrap = $('monitorWrap'), monFrame = $('monFrame'), monTitle = $('monTitle'), monMeta = $('monMeta');
+  const monReady = $('monReady'), monTalk = $('monTalk');
+  let monVideo = null, monBoltTimer = 0, monState = 'closed'; // 'closed' | 'ready' | 'playing' | 'paused'
+
+  function monCmd(func) {
+    try { monFrame.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args: '' }), '*'); } catch {}
+  }
+
+  function monitorOpen(video, lista) {
+    if (!monWrap || !video?.id) return;
+    monVideo = video; monState = 'ready';
+    clearTimeout(monBoltTimer);
+    monWrap.classList.remove('mon-bolt');
+    monWrap.classList.add('mon-ready');
+    monWrap.hidden = false;
+    // enablejsapi permite controlar play/pause por postMessage; SEM autoplay —
+    // o vídeo fica pronto, mas parado, até o operador confirmar
+    const origin = encodeURIComponent(location.origin);
+    monFrame.src = `https://www.youtube.com/embed/${encodeURIComponent(video.id)}?enablejsapi=1&origin=${origin}&autoplay=0&rel=0&modestbranding=1&playsinline=1`;
+    monTitle.textContent = video.titulo || '';
+    const meta = [video.canal, video.duracao, video.views, video.publicado].filter(Boolean).join('  ·  ');
+    monMeta.textContent = meta + (lista?.length > 1 ? `   ·   ${lista.length} resultados encontrados` : '');
+    ELX.toast?.('Vídeo pronto no monitor — aguardando confirmação para iniciar.', 'green');
+  }
+
+  /** inicia (ou retoma) a exibição — chamado após o operador confirmar */
+  function monitorPlay() {
+    if (!monWrap || monWrap.hidden || !monVideo) return false;
+    monCmd('playVideo');
+    monWrap.classList.remove('mon-ready', 'mon-paused');
+    monState = 'playing';
+    ELX.voice?.suspendListening?.();     // corta a audição — o som do vídeo não pode ser ouvido como fala
+    return true;
+  }
+
+  /** botão "🎙 falar com o Elion": pausa o vídeo e devolve a palavra por UM comando */
+  function monitorPauseForTalk() {
+    if (!monWrap || monWrap.hidden || monState !== 'playing') return false;
+    monCmd('pauseVideo');
+    monWrap.classList.add('mon-paused');
+    monState = 'paused';
+    ELX.voice?.resumeListening?.();
+    ELX.voice?.pushToTalkOnce?.();       // já escuta o próximo comando ("continua", "fecha o monitor"…)
+    ELX.toast?.('Vídeo pausado — pode falar, Senhor.', 'green');
+    return true;
+  }
+
+  function monitorClose() {
+    if (!monWrap || monWrap.hidden) return false;
+    monWrap.classList.add('mon-bolt');          // dispara flash + colapso
+    monFrame.src = 'about:blank';                // corta o áudio no ato
+    monState = 'closed';
+    ELX.voice?.resumeListening?.();               // devolve a audição normal
+    clearTimeout(monBoltTimer);
+    monBoltTimer = setTimeout(() => {
+      monWrap.hidden = true;
+      monWrap.classList.remove('mon-bolt', 'mon-ready', 'mon-paused');
+      monVideo = null;
+    }, 560);                                     // = duração do relâmpago no CSS
+    return true;
+  }
+
+  $('monOff') && ($('monOff').onclick = monitorClose);
+  $('monYT') && ($('monYT').onclick = () => monVideo && window.open(monVideo.url, '_blank', 'noopener'));
+  monTalk && (monTalk.onclick = monitorPauseForTalk);
+  monReady && (monReady.onclick = monitorPlay);           // clique no "PRONTO PARA EXIBIR" também confirma
+  $('monitorBackdrop') && ($('monitorBackdrop').onclick = monitorClose);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && monWrap && !monWrap.hidden) monitorClose(); });
+
+  ELX.monitor = {
+    open: monitorOpen, close: monitorClose, play: monitorPlay, pauseForTalk: monitorPauseForTalk,
+    get on() { return !!(monWrap && !monWrap.hidden); },
+    get playing() { return monState === 'playing'; },
+    get video() { return monVideo; },
+  };
 })();

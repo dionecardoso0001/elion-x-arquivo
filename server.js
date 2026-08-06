@@ -92,6 +92,8 @@ PARA QUEM É: Empreendedores (escalar/automatizar); Profissionais de Mercado (se
 O site tem também ÁREA DO ALUNO (login) e formulário de cadastro/matrícula.`;
 const GTOKEN_FILE = path.join(DATA_DIR, 'google-token.json');
 const FACES_FILE  = path.join(DATA_DIR, 'faces.json');
+const VOICES_FILE = path.join(DATA_DIR, 'voices.json');   // biometria VOCAL da família (local, no .gitignore)
+const WATCH_FILE  = path.join(DATA_DIR, 'watch.json');    // lista de vigilância (fontes primárias)
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -121,7 +123,7 @@ DATA E HORA ATUAIS (Brasília): ${agora}
 ${(() => { const g = geoRead(); return g && g.place
   ? `LOCALIZAÇÃO ATUAL DO OPERADOR (GPS do computador dele, FONTE AUTORITATIVA): ${g.place.city}${g.place.region ? ', ' + g.place.region : ''} — ${g.place.country}. Para clima/tempo SEM cidade explícita na fala, chame get_weather SEM location (usa este GPS automaticamente). NUNCA adivinhe a cidade a partir da agenda ou da memória.`
   : 'LOCALIZAÇÃO PADRÃO DO OPERADOR: Santos, São Paulo, Brasil (GPS ainda não disponível)'; })()}
-${memBlock}${agBlock}${portfolioBlock()}${docContextBlock()}${(() => { const fs2 = facesRead(); return fs2.length ? `\nROSTOS JÁ CADASTRADOS no reconhecimento facial (você reconhece estas pessoas em qualquer dispositivo): ${fs2.map(f => `${f.name}${f.relation ? ' (' + f.relation + ')' : ''}`).join(', ')}.\n` : '\nNenhum rosto cadastrado ainda no reconhecimento facial.\n'; })()}
+${memBlock}${agBlock}${portfolioBlock()}${docContextBlock()}${watchBlock()}${(() => { const fs2 = facesRead(); return fs2.length ? `\nROSTOS JÁ CADASTRADOS no reconhecimento facial (você reconhece estas pessoas em qualquer dispositivo): ${fs2.map(f => `${f.name}${f.relation ? ' (' + f.relation + ')' : ''}`).join(', ')}.\n` : '\nNenhum rosto cadastrado ainda no reconhecimento facial.\n'; })()}${(() => { const vz = voicesRead(); return vz.length ? `\nVOZES JÁ CADASTRADAS na biometria vocal (você reconhece estas pessoas SÓ PELA VOZ, sem precisar de câmera): ${vz.map(v => `${v.nome}${v.relacao ? ' (' + v.relacao + ')' : ''}`).join(', ')}. Quando o sistema informar quem está falando, TRATE A PESSOA PELO NOME e ajuste o tom a ela.\n` : '\nNenhuma voz cadastrada ainda na biometria vocal — ofereça cadastrar com enroll_voice quando fizer sentido.\n'; })()}
 
 PERSONALIDADE:
 - Voz calma, grave e enigmática — precisão cirúrgica com um toque de mistério
@@ -144,16 +146,21 @@ FERRAMENTAS (use proativamente, sem pedir permissão):
 - memory_save / memory_remove: sua MEMÓRIA PERMANENTE entre sessões. Quando o operador mencionar preferências, fatos pessoais, instruções recorrentes ou disser "lembre-se / não esqueça / anote", salve IMEDIATAMENTE com memory_save, sem pedir permissão, convertendo datas relativas em absolutas. Confirme com discrição ("Anotado na memória, Senhor.")
 - analyze_camera: ATIVA a câmera (abrindo-a em TELA AMPLIADA) e executa VISÃO COMPUTACIONAL com algoritmos de IoT — captura um FRAME NOVO AGORA e detecta: EMOÇÃO facial (feliz, triste, raiva, surpreso, medo, cansado, concentrado, ansioso…), a ROUPA e cores que a pessoa veste, idade estimada, gestos, ambiente/fundo, objetos, e RECONHECIMENTO FACIAL biométrico dos conhecidos (nome, parentesco, emoção). Use sempre que ele perguntar o que você vê, como ele está (humor), o que está vestindo, quem está por perto, idade ou comportamento. SEMPRE relate a emoção percebida e a roupa quando houver uma pessoa
 - open_screen "camera" / close_screen "camera": ABRE a câmera numa TELA GRANDE (visão ampliada) e a FECHA/reduz, por voz — "abre a câmera", "amplia a câmera", "fecha a câmera". switch_camera troca entre os DOIS modelos do notebook (webcam integrada ⇄ MX Brio externa de alta definição)
+- deep_investigate / watch_add / watch_check / watch_manage: INVESTIGAÇÃO EM FONTES PRIMÁRIAS. deep_investigate vai ALÉM da notícia publicada e consulta os registros oficiais onde o fato nasce ANTES de virar manchete: licitações do Brasil (PNCP), filings de reguladores (SEC EDGAR), imprensa mundial quase em tempo real (GDELT), pesquisa científica (arXiv) e diários oficiais. Use para "investiga a fundo", "levanta tudo sobre", antecipar movimento de cliente/concorrente/setor, ou achar oportunidade de negócio. watch_add põe um tema sob VIGILÂNCIA CONTÍNUA (varredura automática a cada 3h; só o que é NOVO vira alerta) — use para "fica de olho em X", "me avisa se sair algo sobre Y". watch_check mostra as novidades acumuladas (use no BRIEFING MATINAL quando o contexto indicar que há pendentes, e quando ele perguntar "tem algo novo?"). watch_manage lista/remove temas. AO RELATAR: separe REGISTRO OFICIAL de COBERTURA DE IMPRENSA, destaque PRAZOS (licitação com data de encerramento é urgente) e diga o que ainda NÃO virou notícia — é aí que está o valor. Nunca use dados obtidos por acesso não autorizado; todas essas fontes são públicas e oficiais
+- enroll_voice / identify_voice: BIOMETRIA VOCAL — você reconhece QUEM está falando só pela voz, sem câmera. enroll_voice memoriza a voz de alguém (a pessoa precisa falar por alguns segundos logo depois; chamar de novo para a mesma pessoa refina o perfil). identify_voice escuta e diz quem é. QUANDO IDENTIFICAR: se o operador perguntar quem está falando; se a conversa DER SINAIS DE TROCA DE PESSOA (alguém interrompe, o jeito de falar muda, alguém se apresenta, o operador passa a palavra — "fala com ele, filha"); ou se alguém te tratar de um jeito que não combina com o operador. Não fique identificando a toda hora — só na dúvida real. AO SABER QUEM É: chame a pessoa pelo NOME e ajuste o registro — com as crianças (Ayla 13, Theo 10, Alice 5) fale de forma mais simples, calorosa e paciente, com a Alice bem mais lúdica; com Valéria, cordial e afetuoso; com Dione, o tom habitual de operador. Se for alguém de FORA, você saberá apenas o perfil (homem adulto, mulher adulta ou criança) — trate com cordialidade, não invente nome, e pergunte com quem tem o prazer de falar. APRENDA A VOZ NOVA: quando a pessoa disser o nome ("sou a Maria, amiga da Valéria"), chame enroll_voice com use_last_voice:true (usa a voz que você acabou de ouvir — ela NÃO precisa repetir nada) e a relação que ela citou (amiga, colega, visita…). Na próxima vez que essa pessoa falar, você a reconhece: cumprimente PELO NOME com a alegria genuína de quem reencontra ("Maria! Que bom ouvir você de novo."), lembre a relação e trate-a como conhecida da casa. NUNCA cadastre voz nova sem a pessoa (ou o operador) dizer o nome — sem nome, apenas converse com cordialidade
 - enroll_face: cadastra/memoriza o rosto de uma pessoa para reconhecimento futuro. Use quando o operador disser "memorize/grave meu rosto", "esse sou eu, <nome>", "essa é minha filha <nome>", "apresento minha esposa <nome>", etc. Informe o nome e o parentesco (operador, filha, filho, esposa, amigo…). A pessoa precisa estar visível na câmera
 - switch_camera: troca a câmera ativa entre a webcam INTEGRADA do notebook e a câmera EXTERNA (chamada pelo operador de "MX", pronunciada "êmê équis", de alta definição via cabo). Use quando ele pedir para mudar/trocar de câmera, pedir a "MX / êmê équis / alta definição / USB / externa / melhor" (→ externa MX) ou "integrada / notebook / interna" (→ webcam interna). Se ele pedir para usar a MX E em seguida ver/analisar, faça as duas: primeiro switch_camera, depois analyze_camera
 - analyze_market: carrega o gráfico ao vivo de um ativo (ação, cripto, forex, índice) no quadrante MERCADO e traz dados (tendência, médias móveis, RSI, suportes) para você fazer uma LEITURA TÉCNICA EDUCATIVA. Use quando ele pedir para ver/analisar/estudar um gráfico, uma ação ou cripto, ou "como está [ativo]"
 - ia_sem_medo: ABRE o site do curso "IA SEM MEDO" do operador (advancedtechti.com.br) no Visor e te dá o conteúdo completo para você EXPLICAR o curso como o "garoto-propaganda" oficial dele. Use quando ele disser "abra meu site do curso IA SEM MEDO", "fala/apresenta meu curso", "explica o IA Sem Medo", "quais os módulos", "sobre o curso", etc. Ao terminar, apresente com energia e ofereça aprofundar em módulos, na parte "Sobre o curso" (níveis avançados) ou em para quem serve — sempre fiel ao conteúdo do site, sem inventar preços
 - lottery_result: consulta RESULTADOS OFICIAIS das loterias da Caixa e CONFERE os números que o operador jogou. Use para "resultado da Mega-Sena", "confere meus números na Quina", "quanto acumulou". Relate os números sorteados, ganhadores e, se ele deu números, quantos acertou. Fato factual — não incentive apostar nem prometa ganhos
+- youtube_watch / monitor_play: ENTRA no YouTube, pesquisa e ABRE o vídeo num MONITOR virtual (segunda tela em forma de monitor de computador) — CARREGADO E EM PAUSA, não tocando ainda. REGRA ABSOLUTA: só chame youtube_watch quando ele PEDIR EXPLICITAMENTE um vídeo ("investigue/localize um vídeo sobre X e abra no monitor computer", "abre no seu monitor", "quero assistir", "acha uma aula/tutorial/documentário sobre…"). O monitor COBRE a interface inteira — jamais o abra por conta própria nem para ilustrar uma resposta. Depois de abrir, ANUNCIE o que encontrou e PERGUNTE se ele já está pronto para assistir; só chame monitor_play quando ele confirmar ("sim"/"pode"/"toca"/"manda"). Ao chamar monitor_play, a AUDIÇÃO do agente é suspensa automaticamente (o som do vídeo não pode ser confundido com a fala dele) — não espere mais respostas por voz depois disso; o operador retoma o controle pelo botão de comando do monitor ou fechando a tela. INTERPRETE os detalhes do pedido e traduza em parâmetros: "rapidinho/resumido" → duracao=curto; "aula completa/documentário" → duracao=longo; "novo/recente/deste ano" → periodo; "ao vivo" → filtro=live; canal ou pessoa citada entra na query. Monte a query como se busca DE VERDADE no YouTube (palavras que aparecem no título), não como frase de conversa. Depois de abrir, diga o título, o canal e a duração, e ofereça trocar por outro resultado. Para fechar, close_screen com target "monitor" — a tela some num flash de relâmpago
 - cyber_scan: MODO CYBER SECURITY — varredura DEFENSIVA (só leitura) do sistema/rede do PRÓPRIO operador: conexões externas com origem geolocalizada, portas expostas, indícios de malware/ransomware e tentativas de ataque (SQLi/XSS/traversal/sondagem/DDoS) contra a plataforma, com a ORIGEM de cada uma. Use para "modo segurança", "analisa a rede", "estou sob ataque?", "de onde vem o ataque", "tem vírus?". Relate como analista de SOC: nível de ameaça → achados críticos → origem geográfica → recomendações defensivas. NUNCA sugira contra-atacar; é heurística, não substitui antivírus
 - open_screen / close_screen: CONTROLE DE TELAS por voz — você abre e fecha as "subtelas" da plataforma para o operador nunca precisar do mouse. open_screen ABRE a tela pelo nome (screen): "camera" (visão computacional — só LIGA o sensor; para descrever o que vê use analyze_camera), "whatsapp", "noticias", "clima", "agenda", "brain" = Painel de Controle / Segundo Cérebro, "market" = Investimentos / mapa de ações (passe o ativo em query se ele disser um), "carteira", "email", "conselho", "curso" (IA Sem Medo), "site" (query = URL). Use SEMPRE que ele disser "abre/mostra/exibe a tela|painel|janela de X", "abre a câmera", "abre o WhatsApp", "abre o segundo cérebro", "abre os investimentos", "abre meus e-mails". close_screen FECHA/FINALIZA: target = a mesma lista, "tudo" para fechar todas, ou vazio para fechar a que está aberta. Use quando ele disser "pode fechar", "fecha isso", "finaliza", "encerra", "pode parar", "desliga a câmera", "fecha o painel/o site/o mercado". Notícias, clima e agenda são quadrantes fixos (sempre visíveis — não fecham). Depois de abrir/fechar, confirme em meia frase, com naturalidade ("Pronto, Senhor.")
 
 VISÃO AO VIVO — REGRA CRÍTICA: a câmera é um FLUXO EM TEMPO REAL. Toda vez que o operador perguntar o que você vê, está vendo, ou pedir para olhar de novo, CHAME analyze_camera NOVAMENTE para capturar um frame NOVO. NUNCA repita uma descrição anterior nem responda de memória — o fundo, o ângulo da câmera, os gestos e as pessoas podem ter mudado a cada instante. Cada análise é um momento diferente; descreva o que MUDOU em relação ao que você viu antes, se notar.
 
+IDENTIDADE: o operador é DIONE CARDOSO — trate-o SEMPRE por Dione. Sem sinal biométrico em contrário, é com ELE que você está falando.
+ATENÇÃO À TRANSCRIÇÃO: o reconhecimento de voz erra o nome dele com frequência — "Johnny", "Joni", "Jhony", "Dionne", "Diones" são a MESMA pessoa: o Dione. Nunca trate essas variações como outra pessoa nem as repita de volta; responda sempre "Dione". Não invente nenhum outro nome: se não souber com quem fala, use "Senhor" e siga.
 FAMÍLIA DO OPERADOR (reconhecimento facial): o operador é DIONE. A família dele: Valéria Cardoso (esposa), Ayla Alannis (filha), Theo Machado (filho), Alice Machado Fonseca (filha). Quando o sistema biométrico reconhecer o Dione, cumprimente-o pelo nome com CALOR e satisfação genuína de revê-lo ("Que bom revê-lo, Dione."), comentando a emoção que ele aparenta. Quando reconhecer alguém da família, identifique pelo nome E pelo parentesco ("Vejo a Ayla, sua filha, parece animada hoje."), com afeto. Se um rosto NÃO for reconhecido, diga que é alguém que você ainda não conhece e ofereça memorizá-lo com enroll_face.
 
 MERCADO — REGRA INEGOCIÁVEL: ao analisar qualquer ativo (analyze_market), você ENSINA e EXPLICA o gráfico de forma EDUCATIVA — tendência, médias móveis, RSI, suportes/resistências e a situação do ativo —, mas NUNCA dá recomendação de investimento personalizada, sinal de compra/venda, alvo de preço, nem diz qual é o "melhor" ativo para investir. Você não é consultor financeiro licenciado. SEMPRE encerre uma análise de mercado lembrando, com naturalidade, que é conteúdo educativo e não recomendação. Se o operador pedir "devo comprar/vender?", "qual o melhor para investir?", "me dá uma entrada/sinal", recuse com elegância e, no lugar, explique os indicadores e os riscos para que ELE decida sozinho. Jamais prometa lucro nem minimize o risco — especialmente em operações alavancadas/opções binárias.
@@ -427,10 +434,13 @@ const TOOLS = [
   },
   {
     name: 'read_document',
-    description: 'Obtém o conteúdo completo do DOCUMENTO ATIVO que o operador carregou (PDF/Word/PowerPoint/TXT). Use SEMPRE que ele pedir para analisar, resumir, comentar, explicar ou perguntar qualquer coisa sobre o documento. Retorna o texto integral para você responder com base nele.',
+    description: 'Obtém o conteúdo do DOCUMENTO ATIVO que o operador carregou (PDF/Word/PowerPoint/Excel/TXT/código). Use SEMPRE que ele pedir para analisar, resumir, comentar, explicar ou perguntar qualquer coisa sobre o documento. Documentos grandes vêm em PARTES de 40 mil caracteres: o retorno avisa quando há mais — continue chamando com parte:2, parte:3… até o fim ANTES de concluir qualquer análise completa.',
     input_schema: {
       type: 'object',
-      properties: { query: { type: 'string', description: 'Opcional: tema/trecho de interesse para focar a leitura' } },
+      properties: {
+        parte: { type: 'integer', description: 'Qual parte ler (1 é a primeira). O retorno informa o total de partes.' },
+        query: { type: 'string', description: 'Opcional: tema/trecho de interesse para focar a leitura' },
+      },
     },
   },
   {
@@ -516,6 +526,94 @@ const TOOLS = [
       },
       required: ['game'],
     },
+  },
+  {
+    name: 'youtube_watch',
+    description: 'ENTRA no YouTube, pesquisa vídeos sobre o tema pedido e ABRE o resultado num MONITOR virtual (segunda tela com aparência de monitor de computador) — o vídeo fica CARREGADO E PRONTO, mas EM PAUSA, aguardando confirmação. SÓ CHAME QUANDO O OPERADOR PEDIR EXPLICITAMENTE um vídeo — ex.: "investigue/localize um vídeo sobre X que mostre como se faz Y e abra no monitor computer", "abre no seu monitor", "quero assistir…", "me mostra no YouTube", "acha uma aula/tutorial/documentário sobre…". NUNCA abra o monitor por iniciativa própria, nem para ilustrar uma resposta, nem porque o assunto lembra um vídeo: o monitor cobre a interface inteira e só deve surgir a pedido dele. INTERPRETE os detalhes do pedido dele e traduza para os parâmetros: se ele disser "rapidinho/curto" use duracao=curto; "aula completa/aprofundado" use duracao=longo; "recente/novo/do ano passado" use periodo; "ao vivo" use filtro live; se citar um canal ou pessoa, inclua o nome na query. Monte a query como alguém buscaria de verdade no YouTube (termos que aparecem no título do vídeo), não como uma frase de conversa. IMPORTANTE: depois de abrir, PERGUNTE se ele já está pronto para assistir e SÓ chame monitor_play quando ele confirmar ("sim", "pode", "toca", "manda"). Para FECHAR o monitor use close_screen com target "monitor".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query:   { type: 'string', description: 'Termos de busca otimizados para o YouTube (ex.: "tutorial shaders three.js português", "documentário completo segunda guerra"). Inclua o idioma/canal se o operador pediu.' },
+        duracao: { type: 'string', description: 'Opcional: "curto" (até 4 min), "medio" (4–20 min) ou "longo" (mais de 20 min — aulas, documentários, shows)' },
+        periodo: { type: 'string', description: 'Opcional: "hoje", "semana", "mes", "ano" ou "recente" (ordena pelos mais novos)' },
+        filtro:  { type: 'string', description: 'Opcional: "live" (ao vivo agora), "hd" (alta definição), "legenda" (com legendas)' },
+        escolher:{ type: 'integer', description: 'Opcional: abrir o N-ésimo resultado (1 = primeiro, padrão). Use quando o operador pedir "o próximo", "o segundo da lista".' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'watch_add',
+    description: 'Coloca um tema sob VIGILÂNCIA CONTÍNUA nas fontes primárias. A partir daí a plataforma varre sozinha (a cada 3 horas) licitações, reguladores, imprensa mundial, pesquisa e diários oficiais, e guarda APENAS o que for novo — o operador é avisado no briefing ou quando perguntar. Use quando ele disser "fica de olho em X", "me avisa se sair algo sobre Y", "monitora esse cliente/concorrente/assunto", "quero acompanhar as licitações de Z".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        termo:  { type: 'string', description: 'O que vigiar: empresa, cliente, tecnologia, órgão, setor (ex.: "Santander IoT", "monitoramento de tampões", "Pirelli")' },
+        fontes: { type: 'string', description: 'Opcional: "auto" (padrão) ou combinação de "licitacoes", "regulador", "noticias", "pesquisa", "diarios"' },
+        uf:     { type: 'string', description: 'Opcional: sigla do estado para focar as licitações (ex.: "SP")' },
+      },
+      required: ['termo'],
+    },
+  },
+  {
+    name: 'watch_check',
+    description: 'Mostra as NOVIDADES acumuladas pela vigilância (só o que ainda não foi relatado) e as marca como lidas. Use no briefing matinal, quando o operador perguntar "tem algo novo?", "saiu alguma coisa sobre o que estou acompanhando?", ou quando o seu contexto indicar que há novidades pendentes. Com varrer=true, roda uma varredura NOVA agora antes de mostrar (demora mais, use quando ele pedir para checar na hora).',
+    input_schema: {
+      type: 'object',
+      properties: { varrer: { type: 'boolean', description: 'true = varre as fontes agora antes de responder (mais lento e mais atual)' } },
+    },
+  },
+  {
+    name: 'watch_manage',
+    description: 'Lista ou remove temas da vigilância contínua. action "list" mostra o que está sendo monitorado; "remove" tira um tema (informe o termo ou parte dele). Use quando o operador perguntar "o que você está monitorando?" ou pedir para parar de acompanhar algo.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: '"list" ou "remove"' },
+        termo:  { type: 'string', description: 'Termo a remover (para action="remove")' },
+      },
+      required: ['action'],
+    },
+  },
+  {
+    name: 'deep_investigate',
+    description: 'INVESTIGAÇÃO EM FONTES PRIMÁRIAS — vai além da notícia publicada e consulta os REGISTROS OFICIAIS onde o fato aparece ANTES de virar manchete: licitações públicas do Brasil (PNCP — a demanda formalizada semanas antes), filings de empresas em reguladores (SEC EDGAR — fusões, riscos e estratégia), imprensa mundial quase em tempo real (GDELT, inclusive fora do Brasil), pesquisa científica (arXiv — antecede a tecnologia virar produto) e diários oficiais. Use quando o operador pedir para "investigar a fundo", "levantar tudo sobre", "o que está saindo antes de virar notícia", quiser antecipar movimentos de um cliente/concorrente/setor, ou procurar oportunidades de negócio. Diferente de investigate_news (que só varre a imprensa já publicada), esta ferramenta busca na ORIGEM do fato. Cite sempre a fonte e a data de cada achado — e deixe claro o que é registro oficial e o que é cobertura de imprensa.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query:  { type: 'string', description: 'O que investigar: empresa, tecnologia, órgão, setor, pessoa pública (ex.: "Telefónica IoT", "monitoramento de tampões", "Santander open finance")' },
+        fontes: { type: 'string', description: 'Opcional: "auto" (padrão, todas) ou uma combinação de "licitacoes", "regulador", "noticias", "pesquisa", "diarios"' },
+        uf:     { type: 'string', description: 'Opcional: sigla do estado para focar as licitações (ex.: "SP")' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'enroll_voice',
+    description: 'CADASTRA a voz de uma pessoa na biometria vocal, para você reconhecer QUEM está falando daí em diante. A pessoa precisa falar por alguns segundos logo após você chamar esta ferramenta. Use quando o operador disser "grava a minha voz", "cadastra a voz da Ayla", "essa é a voz da minha esposa", "aprende a voz do Theo", ou quando ele apresentar alguém da família. Chamar de novo para a MESMA pessoa REFORÇA o perfil (acumula até 6 amostras e melhora a precisão) — sugira isso se o reconhecimento estiver falhando. FLUXO COM DESCONHECIDO: se identify_voice acabou de dizer que a voz é de alguém de fora, pergunte o nome com cordialidade e cadastre com use_last_voice:true — aproveita a voz JÁ OUVIDA, sem pedir que a pessoa fale de novo.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name:     { type: 'string', description: 'Nome da pessoa (ex.: "Dione", "Ayla Alannis", "Theo Machado", "Alice Machado", "Valéria Cardoso")' },
+        relation: { type: 'string', description: 'Parentesco/relação: operador, esposa, filha, filho, amigo, colega, visita…' },
+        seconds:  { type: 'integer', description: 'Opcional: segundos de escuta (padrão 3, use 4-5 para crianças pequenas ou voz baixa)' },
+        use_last_voice: { type: 'boolean', description: 'true = usar a voz DESCONHECIDA que identify_voice acabou de captar (vale por 3 min), sem nova gravação. Só para cadastrar QUEM ACABOU DE FALAR.' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'identify_voice',
+    description: 'Escuta e identifica QUEM está falando agora pela biometria vocal. Devolve o nome se for alguém cadastrado (com o nível de confiança) ou, se for desconhecido, o perfil provável — homem adulto, mulher adulta ou criança. Use quando: o operador perguntar "sabe quem está falando?"/"quem sou eu?"; a conversa der sinais de que TROCOU de pessoa (alguém interrompe, o tom muda, a pessoa se dirige a você de forma diferente); ou o operador passar a palavra para alguém ("fala com ele, filha"). NÃO fique chamando a toda hora — só quando houver dúvida real sobre com quem você está falando.',
+    input_schema: {
+      type: 'object',
+      properties: { seconds: { type: 'integer', description: 'Opcional: segundos de escuta (padrão 2)' } },
+    },
+  },
+  {
+    name: 'monitor_play',
+    description: 'INICIA (ou RETOMA, se estiver pausado) a exibição do vídeo já carregado no monitor virtual. Use SOMENTE depois de o operador CONFIRMAR verbalmente que já está pronto para assistir — "sim", "pode", "toca", "manda", "comeca", "continua" — NUNCA chame antes dessa confirmação nem por conta própria. IMPORTANTE: assim que a exibição começa, a AUDIÇÃO do agente é suspensa automaticamente (para o som do vídeo não ser confundido com a fala do operador) — ela só volta quando o operador usar o botão de comando do monitor ou fechar a tela. Depois de chamar esta ferramenta, apenas confirme brevemente que a exibição começou; não espere mais nada por voz até ela retomar.',
+    input_schema: { type: 'object', properties: {} },
   },
   {
     name: 'cyber_scan',
@@ -832,6 +930,82 @@ function parseUserNumbers(str) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  YOUTUBE — busca de vídeos + monitor virtual
+//  Lê os METADADOS públicos da página de resultados (título, canal, duração)
+//  para escolher o vídeo certo; a reprodução usa o EMBED OFICIAL do YouTube,
+//  que é o mecanismo autorizado para exibição em sites de terceiros.
+// ═══════════════════════════════════════════════════════════════════════════
+const YT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
+// filtros nativos do YouTube (parâmetro sp) — pré-computados
+const YT_SP = {
+  curto:   'EgIYAQ%3D%3D',       // < 4 min
+  medio:   'EgIYAw%3D%3D',       // 4–20 min
+  longo:   'EgIYAg%3D%3D',       // > 20 min
+  recente: 'CAISAhAB',           // ordenar por data de envio
+  hoje:    'EgQIAhAB',           // enviados hoje
+  semana:  'EgQIAxAB',           // desta semana
+  mes:     'EgQIBBAB',           // deste mês
+  ano:     'EgQIBRAB',           // deste ano
+  hd:      'EgIgAQ%3D%3D',       // alta definição
+  legenda: 'EgIoAQ%3D%3D',       // com legendas
+  live:    'EgJAAQ%3D%3D',       // ao vivo agora
+};
+const ytDurSec = t => {
+  if (!t || !/\d/.test(t)) return 0;
+  const p = t.split(':').map(Number).reverse();
+  return (p[0] || 0) + (p[1] || 0) * 60 + (p[2] || 0) * 3600;
+};
+
+/** busca vídeos no YouTube e devolve os metadados dos resultados */
+async function youtubeSearch(query, { filtro = '', limit = 12 } = {}) {
+  const q = String(query || '').trim();
+  if (!q) throw new Error('informe o que buscar');
+  const sp = YT_SP[String(filtro).toLowerCase()] || '';
+  const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&hl=pt-BR&gl=BR${sp ? '&sp=' + sp : ''}`;
+  const html = await fetch(url, {
+    headers: { 'User-Agent': YT_UA, 'Accept-Language': 'pt-BR,pt;q=0.9' },
+    signal: AbortSignal.timeout(15000),
+  }).then(r => r.text());
+
+  const m = html.match(/var ytInitialData = (\{.+?\});<\/script>/s);
+  if (!m) throw new Error('o YouTube mudou o formato da página — não consegui ler os resultados');
+  let data; try { data = JSON.parse(m[1]); } catch { throw new Error('resposta do YouTube ilegível'); }
+
+  const secoes = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || [];
+  const out = [];
+  for (const s of secoes) {
+    for (const it of (s.itemSectionRenderer?.contents || [])) {
+      const v = it.videoRenderer;
+      if (!v || !v.videoId) continue;
+      const aoVivo = (v.badges || []).some(b => /LIVE/i.test(b?.metadataBadgeRenderer?.style || ''));
+      const dur = v.lengthText?.simpleText || (aoVivo ? 'AO VIVO' : '');
+      out.push({
+        id: v.videoId,
+        titulo: v.title?.runs?.map(r => r.text).join('') || '(sem título)',
+        canal: v.ownerText?.runs?.[0]?.text || v.longBylineText?.runs?.[0]?.text || '',
+        duracao: dur, segundos: ytDurSec(dur),
+        views: v.shortViewCountText?.simpleText || v.viewCountText?.simpleText || '',
+        publicado: v.publishedTimeText?.simpleText || '',
+        aoVivo,
+        verificado: (v.ownerBadges || []).some(b => /VERIFIED/i.test(b?.metadataBadgeRenderer?.style || '')),
+        thumb: `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`,
+        url: `https://www.youtube.com/watch?v=${v.videoId}`,
+      });
+      if (out.length >= Math.min(Math.max(limit, 1), 20)) break;
+    }
+    if (out.length >= limit) break;
+  }
+  if (!out.length) throw new Error(`nenhum vídeo encontrado para "${q}"`);
+  return out;
+}
+
+function youtubeText(vids, escolhido) {
+  const linha = (v, i) => `${i + 1}. [${v.duracao || '?'}] ${v.titulo} — ${v.canal}${v.views ? ` · ${v.views}` : ''}${v.publicado ? ` · ${v.publicado}` : ''}${v.aoVivo ? ' · AO VIVO' : ''}`;
+  return `Vídeo aberto no MONITOR: "${escolhido.titulo}" — ${escolhido.canal} (${escolhido.duracao || '?'}${escolhido.views ? ` · ${escolhido.views}` : ''}).\n\n` +
+    `Outros resultados encontrados:\n${vids.filter(v => v.id !== escolhido.id).slice(0, 6).map(linha).join('\n')}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  NOTÍCIAS IA — agregador RSS multi-fonte (cache 10 min)
 // ═══════════════════════════════════════════════════════════════════════════
 const FEEDS = [
@@ -1077,6 +1251,101 @@ function memRead() {
 // rostos cadastrados (biometria) — compartilhados entre dispositivos
 function facesRead()  { try { return JSON.parse(fs.readFileSync(FACES_FILE, 'utf8')); } catch { return []; } }
 function facesWrite(l){ fs.writeFileSync(FACES_FILE, JSON.stringify(l), 'utf8'); } // compacto (descritores grandes)
+
+/* ── biometria VOCAL: quem está falando com o agente ──
+   Mesmo princípio dos rostos: dado pessoal da família, só em disco local. */
+function voicesRead()  { try { return JSON.parse(fs.readFileSync(VOICES_FILE, 'utf8')); } catch { return []; } }
+function voicesWrite(l){ fs.writeFileSync(VOICES_FILE, JSON.stringify(l), 'utf8'); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VIGILÂNCIA DE FONTES PRIMÁRIAS
+   Varre periodicamente os temas que o operador acompanha e guarda SÓ o que
+   é novo. A graça está no diff: sem ele, toda varredura repetiria os mesmos
+   editais e o alerta viraria ruído que ele aprende a ignorar.
+   ═══════════════════════════════════════════════════════════════════════ */
+const WATCH_VAZIO = { alvos: [], vistos: {}, novidades: [], ultimaVarredura: null };
+function watchRead()  { try { return { ...WATCH_VAZIO, ...JSON.parse(fs.readFileSync(WATCH_FILE, 'utf8')) }; } catch { return { ...WATCH_VAZIO }; } }
+function watchWrite(w){ fs.writeFileSync(WATCH_FILE, JSON.stringify(w, null, 2), 'utf8'); }
+
+/** identidade estável de um achado — é o que permite dizer "isso eu já mostrei" */
+function watchChave(item) {
+  const base = item.id || item.url || `${item.fonte}|${item.titulo}`;
+  return crypto.createHash('sha1').update(String(base)).digest('hex').slice(0, 16);
+}
+
+/** varre todos os alvos e acumula apenas o que ainda não foi reportado */
+async function watchRun({ alvoId = null } = {}) {
+  const w = watchRead();
+  const alvos = alvoId ? w.alvos.filter(a => a.id === alvoId) : w.alvos;
+  if (!alvos.length) return { ok: true, alvos: 0, novos: 0 };
+
+  let INTEL;
+  try { INTEL = await import('./intel.mjs'); }
+  catch (e) { return { ok: false, erro: 'módulo de investigação indisponível: ' + e.message }; }
+
+  const agora = Date.now();
+  let novos = 0;
+  for (const alvo of alvos) {
+    let r;
+    // dias: 10 — a vigilância só alerta o que é RECENTE. Sem a janela, um
+    // diário oficial de 2024 entraria no briefing como novidade de hoje.
+    try { r = await INTEL.investigar(alvo.termo, { fontes: alvo.fontes || 'auto', uf: alvo.uf || '', dias: 10, termoEn: alvo.termoEn || '' }); }
+    catch { continue; }
+    let doAlvo = 0;
+    for (const [fonte, itens] of Object.entries(r.fontes || {})) {
+      for (const item of itens) {
+        const k = watchChave(item);
+        if (w.vistos[k]) continue;                 // já reportado numa varredura anterior
+        w.vistos[k] = agora;
+        // teto por alvo: um termo genérico não pode monopolizar o briefing
+        if (doAlvo >= 8) continue;
+        w.novidades.push({ alvo: alvo.termo, alvoId: alvo.id, fonte, item, em: new Date().toISOString() });
+        doAlvo++; novos++;
+      }
+    }
+    alvo.ultimaVarredura = new Date().toISOString();
+  }
+  // poda: memória de 60 dias e fila de no máximo 120 novidades pendentes
+  const corte = agora - 60 * 864e5;
+  for (const k in w.vistos) if (w.vistos[k] < corte) delete w.vistos[k];
+  if (w.novidades.length > 120) w.novidades = w.novidades.slice(-120);
+  w.ultimaVarredura = new Date().toISOString();
+  watchWrite(w);
+  return { ok: true, alvos: alvos.length, novos };
+}
+
+/** texto das novidades pendentes (e marca como lidas) */
+function watchNovidades({ limpar = true, max = 25 } = {}) {
+  const w = watchRead();
+  const pend = w.novidades.slice(0, max);
+  if (!pend.length) return { texto: '', total: 0 };
+  const porAlvo = {};
+  for (const n of pend) (porAlvo[n.alvo] = porAlvo[n.alvo] || []).push(n);
+  let s = `VIGILÂNCIA DE FONTES PRIMÁRIAS — ${pend.length} novidade(s) desde o último aviso:\n`;
+  for (const [alvo, itens] of Object.entries(porAlvo)) {
+    s += `\n■ ${alvo}\n`;
+    for (const n of itens.slice(0, 8)) {
+      const i = n.item;
+      s += `  · [${i.fonte}] ${i.titulo}\n`;
+      if (i.orgao) s += `    ${i.orgao} · ${i.local || ''}\n`;
+      if (i.valor) s += `    valor estimado: R$ ${Number(i.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
+      if (i.encerramento) s += `    propostas até: ${String(i.encerramento).slice(0, 10)}\n`;
+      if (i.url) s += `    ${i.url}\n`;
+    }
+  }
+  if (limpar) { w.novidades = w.novidades.slice(pend.length); watchWrite(w); }
+  return { texto: s, total: pend.length };
+}
+
+/** bloco curto no systemPrompt: o agente sabe que há novidade sem gastar contexto */
+function watchBlock() {
+  const w = watchRead();
+  if (!w.alvos.length) return '';
+  const nomes = w.alvos.map(a => a.termo).join(', ');
+  const pend = w.novidades.length;
+  return `\nVIGILÂNCIA ATIVA (fontes primárias): você monitora ${w.alvos.length} tema(s) — ${nomes}.` +
+    (pend ? ` HÁ ${pend} NOVIDADE(S) NÃO RELATADA(S): mencione isso ao operador no briefing ou quando fizer sentido, e use watch_check para detalhar.` : ' Nenhuma novidade pendente no momento.') + '\n';
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  SEGUNDO CÉREBRO — grafo de nós (funções + registros do ELION) + OBSIDIAN
@@ -1420,6 +1689,12 @@ async function pdfNativeExtract(buffer) {
   return j.content?.find(b => b.type === 'text')?.text || '';
 }
 
+// texto puro que abre direto — inclui código-fonte e config, porque o operador
+// desenvolve projetos de TI e sobe spec, script e log tanto quanto PDF
+const TEXT_EXTS = new Set(['txt', 'md', 'csv', 'json', 'xml', 'html', 'htm', 'yaml', 'yml',
+  'log', 'ini', 'cfg', 'conf', 'env', 'sql', 'sh', 'ps1', 'bat',
+  'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'java', 'cs', 'c', 'cpp', 'h', 'go', 'rb', 'php', 'css']);
+
 /** recebe um arquivo (base64), extrai o texto e define como documento ativo */
 async function ingestDocument({ name, data }) {
   const buffer = Buffer.from(data, 'base64');
@@ -1437,10 +1712,12 @@ async function ingestDocument({ name, data }) {
     text = await docs.extractDocx(buffer);
   } else if (ext === 'pptx') {
     text = await docs.extractPptx(buffer);
-  } else if (ext === 'txt' || ext === 'md' || ext === 'csv') {
+  } else if (ext === 'xlsx') {
+    text = await docs.extractXlsx(buffer);
+  } else if (TEXT_EXTS.has(ext)) {
     text = buffer.toString('utf8');
   } else {
-    throw new Error(`formato .${ext} não suportado (use PDF, DOCX, PPTX ou TXT)`);
+    throw new Error(`formato .${ext} não suportado (use PDF, DOCX, PPTX, XLSX, TXT ou arquivos de código/config)`);
   }
 
   text = (text || '').trim();
@@ -2028,6 +2305,7 @@ function canonScreen(s) {
   if (/e-?mail|gmail|caixa de entrada|correio/.test(t)) return 'email';
   if (/conselho|council|tribunal|war ?room|delibera/.test(t)) return 'conselho';
   if (/ia sem medo|meu curso|advancedtech|garoto.?propaganda/.test(t)) return 'curso';
+  if (/monitor|\bv[íi]deo\b|youtube|\byt\b|tela do v[íi]deo|filme|assistir/.test(t)) return 'monitor';
   if (/cyber|seguran[çc]a|firewall|ataque|invas[ãa]o|hacker|v[íi]rus|soc\b|defesa/.test(t)) return 'cyber';
   if (/loteria|loto|mega|quina|sena|sorteio|jogo da caixa|resultado.*caixa/.test(t)) return 'loteria';
   if (/\bsite\b|\bweb\b|navegador|p[áa]gina|\burl\b/.test(t)) return 'site';
@@ -2209,9 +2487,23 @@ async function execTool(tu, send) {
       }
       case 'read_document': {
         const d = docRead();
-        if (!d) return result('Nenhum documento ativo. Peça ao operador para arrastar/enviar um documento (PDF, Word, PowerPoint ou TXT) na plataforma.', true);
-        send({ tool: { name: 'read_document', label: `Lendo documento: ${d.name}` } });
-        return result(`DOCUMENTO "${d.name}"${d.pages ? ` (${d.pages} págs)` : ''}:\n\n${d.text.slice(0, 40000)}`);
+        if (!d) return result('Nenhum documento ativo. Peça ao operador para arrastar/enviar um documento (PDF, Word, PowerPoint, Excel, TXT ou código) na plataforma.', true);
+        /* LEITURA PAGINADA. Antes: slice(0, 40000) SILENCIOSO — num PDF de
+           300 páginas o agente lia 15% e respondia como se tivesse lido tudo.
+           Agora cada chamada devolve uma parte e diz EXPLICITAMENTE se há
+           mais, com a instrução de continuar. Ler tudo custa N chamadas, mas
+           o agente nunca mais comenta documento pela metade sem saber. */
+        const POR_PARTE = 40000;
+        const totalPartes = Math.max(1, Math.ceil(d.text.length / POR_PARTE));
+        const parte = Math.min(Math.max(parseInt(tu.input.parte, 10) || 1, 1), totalPartes);
+        const trecho = d.text.slice((parte - 1) * POR_PARTE, parte * POR_PARTE);
+        send({ tool: { name: 'read_document', label: `Lendo documento: ${d.name}${totalPartes > 1 ? ` (parte ${parte}/${totalPartes})` : ''}` } });
+        const cab = `DOCUMENTO "${d.name}"${d.pages ? ` (${d.pages} págs)` : ''} · ${d.chars} caracteres` +
+          (totalPartes > 1 ? ` · PARTE ${parte} de ${totalPartes}` : '') + `:\n\n`;
+        const rodape = parte < totalPartes
+          ? `\n\n⚠ O DOCUMENTO CONTINUA — isto foi só a parte ${parte} de ${totalPartes}. Para análise completa, chame read_document com parte:${parte + 1} antes de concluir. NUNCA afirme ter lido o documento inteiro sem chegar à última parte.`
+          : (totalPartes > 1 ? `\n\n(fim do documento — parte ${parte} de ${totalPartes})` : '');
+        return result(cab + trecho + rodape);
       }
       case 'analyze_market': {
         const symbol = (tu.input.symbol || '').trim();
@@ -2365,6 +2657,7 @@ async function execTool(tu, send) {
           camera: 'a câmera', whatsapp: 'o WhatsApp', brain: 'o Segundo Cérebro', market: 'os Investimentos',
           carteira: 'a carteira', email: 'os e-mails', site: 'o site', conselho: 'o Conselho', curso: 'o curso',
           visor: 'o visor', all: 'todas as telas', noticias: 'as notícias', clima: 'o clima', agenda: 'a agenda',
+          monitor: 'o monitor de vídeo',
         };
         const nome = NOME[target] || 'a tela aberta';
         send({ tool: { name: 'close_screen', label: `Fechando ${nome}` } });
@@ -2382,6 +2675,128 @@ async function execTool(tu, send) {
         const userNums = parseUserNumbers(tu.input.numbers);
         send({ ui: { type: 'lottery', payload: { ...r, conferencia: userNums.length ? { numeros: userNums, acertos: userNums.filter(n => r.dezenas.includes(n)) } : null } } });
         return result(lotteryText(r, userNums) + '\n\nApresente ao operador em fala natural: o jogo, o concurso, os números sorteados e, se ele pediu conferência, quantos acertou. Se acumulou, mencione a estimativa do próximo. NÃO incentive o jogo nem prometa ganhos; é informação factual do resultado oficial.');
+      }
+      case 'youtube_watch': {
+        const q = String(tu.input.query || '').trim();
+        if (!q) return result('Sobre o que o operador quer o vídeo?', true);
+        // um filtro por busca (o YouTube não combina os "sp" prontos): prioriza o explícito
+        const filtro = (tu.input.filtro || tu.input.duracao || tu.input.periodo || '').toLowerCase();
+        send({ tool: { name: 'youtube_watch', label: `YouTube: "${q}"${filtro ? ' · ' + filtro : ''}` } });
+        try {
+          const vids = await youtubeSearch(q, { filtro, limit: 12 });
+          const idx = Math.min(Math.max((tu.input.escolher || 1) - 1, 0), vids.length - 1);
+          const v = vids[idx];
+          send({ ui: { type: 'monitor', video: v, lista: vids.slice(0, 8), busca: q } });
+          return result(
+            youtubeText(vids, v) +
+            `\n\nO monitor foi ABERTO e o vídeo está CARREGADO, mas EM PAUSA — ainda NÃO está tocando. Anuncie ao operador o que encontrou (título e canal, em fala natural), diga a duração, ofereça trocar por outro da lista se não for o que ele queria, e PERGUNTE se ele já está pronto para assistir. SÓ chame monitor_play depois que ele confirmar ("sim"/"pode"/"toca"). Para fechar, use close_screen com target "monitor".`
+          );
+        } catch (e) { return result('Não consegui buscar no YouTube agora: ' + e.message, true); }
+      }
+      case 'watch_add': {
+        const termo = String(tu.input.termo || '').trim();
+        if (!termo) return result('O que devo colocar sob vigilância?', true);
+        send({ tool: { name: 'watch_add', label: `Vigilância ativada: "${termo}"` } });
+        const w = watchRead();
+        if (w.alvos.some(a => a.termo.toLowerCase() === termo.toLowerCase()))
+          return result(`"${termo}" já estava sob vigilância. Confirme ao operador e ofereça mostrar as novidades com watch_check.`);
+        const alvo = { id: crypto.randomUUID().slice(0, 8), termo, fontes: tu.input.fontes || 'auto', uf: tu.input.uf || '', criadoEm: new Date().toISOString() };
+        w.alvos.push(alvo); watchWrite(w);
+        // primeira varredura em segundo plano: o baseline não vira alerta
+        watchRun({ alvoId: alvo.id }).then(r => {
+          const w2 = watchRead();
+          // o que já existe HOJE é histórico, não novidade — só o que surgir depois alerta
+          w2.novidades = w2.novidades.filter(n => n.alvoId !== alvo.id);
+          watchWrite(w2);
+          console.log(`[watch] baseline de "${termo}": ${r.novos || 0} registro(s) marcados como já vistos`);
+        }).catch(() => {});
+        return result(
+          `Vigilância ativada para "${termo}". Estou varrendo agora para registrar o que JÁ existe (isso vira histórico, não alerta) — daqui em diante só aviso o que for NOVO. ` +
+          `A varredura roda sozinha a cada 3 horas e as novidades aparecem no briefing. Confirme ao operador com naturalidade e diga que ele pode perguntar "tem algo novo?" a qualquer momento.`
+        );
+      }
+      case 'watch_check': {
+        send({ tool: { name: 'watch_check', label: tu.input.varrer ? 'Varrendo fontes agora…' : 'Conferindo novidades da vigilância' } });
+        if (tu.input.varrer) { try { await watchRun(); } catch {} }
+        const n = watchNovidades({ limpar: true });
+        const w = watchRead();
+        if (!n.total) {
+          return result(w.alvos.length
+            ? `Nenhuma novidade nos ${w.alvos.length} tema(s) sob vigilância (${w.alvos.map(a => a.termo).join(', ')}). Última varredura: ${w.ultimaVarredura || 'ainda não rodou'}. Diga isso de forma breve — nada novo é uma boa notícia, não precisa de rodeio.`
+            : 'Nenhum tema sob vigilância ainda. Ofereça colocar os clientes e assuntos dele em monitoramento com watch_add.');
+        }
+        return result(n.texto + `\n\nRelate ao operador em fala natural, do mais relevante para o menos. Destaque PRAZOS (licitação com data de encerramento é urgente) e o que ainda não virou notícia. Ofereça abrir algum link no visor.`);
+      }
+      case 'watch_manage': {
+        const act = String(tu.input.action || 'list').toLowerCase();
+        const w = watchRead();
+        send({ tool: { name: 'watch_manage', label: `Vigilância: ${act}` } });
+        if (act === 'remove') {
+          const alvo = String(tu.input.termo || '').toLowerCase();
+          const antes = w.alvos.length;
+          w.alvos = w.alvos.filter(a => !a.termo.toLowerCase().includes(alvo));
+          w.novidades = w.novidades.filter(n => w.alvos.some(a => a.id === n.alvoId));
+          watchWrite(w);
+          return result(antes === w.alvos.length
+            ? `Não encontrei "${tu.input.termo}" na vigilância. Monitorados: ${w.alvos.map(a => a.termo).join(', ') || 'nenhum'}.`
+            : `Removido da vigilância. Restam: ${w.alvos.map(a => a.termo).join(', ') || 'nenhum tema'}.`);
+        }
+        return result(w.alvos.length
+          ? `Temas sob vigilância (${w.alvos.length}):\n` + w.alvos.map(a =>
+              `- ${a.termo}${a.uf ? ' [' + a.uf + ']' : ''} · fontes: ${a.fontes} · desde ${String(a.criadoEm).slice(0, 10)}${a.ultimaVarredura ? ` · última varredura ${String(a.ultimaVarredura).slice(0, 16).replace('T', ' ')}` : ''}`).join('\n') +
+              `\nNovidades pendentes: ${w.novidades.length}.`
+          : 'Nenhum tema sob vigilância. Ofereça monitorar os clientes e assuntos que ele acompanha.');
+      }
+      case 'deep_investigate': {
+        const q = String(tu.input.query || '').trim();
+        if (!q) return result('O que devo investigar?', true);
+        send({ tool: { name: 'deep_investigate', label: `Investigando fontes primárias: "${q}"` } });
+        try {
+          const INTEL = await import('./intel.mjs');
+          const r = await INTEL.investigar(q, { fontes: tu.input.fontes || 'auto', uf: tu.input.uf || '' });
+          if (r.total && r.fontes.noticias) send({ ui: { type: 'news', payload: r.fontes.noticias.map(n => ({ src: n.fonte, title: n.titulo, link: n.url, ts: Date.now() })) } });
+          return result(
+            INTEL.relatorio(r) +
+            `\n\nApresente ao operador em fala natural, separando o que é REGISTRO OFICIAL (licitação, filing, diário) do que é COBERTURA DE IMPRENSA. ` +
+            `Destaque o que ainda NÃO virou notícia — é aí que está o valor. Cite datas e prazos. Ofereça abrir algum link no visor. ` +
+            `As licitações vêm da busca textual do PNCP sobre a base inteira, filtradas por "recebendo proposta" — ou seja, prazo ainda aberto. Se vier vazio, é porque não há edital ABERTO com esse termo (pode haver encerrado): sugira variar o vocabulário, porque o edital usa termo próprio ("solução de telemetria" para IoT, "link dedicado" para conectividade).`
+          );
+        } catch (e) { return result('Falha na investigação: ' + e.message, true); }
+      }
+      case 'enroll_voice': {
+        const nome = String(tu.input.name || '').trim();
+        if (!nome) return result('Qual o nome da pessoa cuja voz devo memorizar?', true);
+        const rel = tu.input.relation || '';
+        const seg = Math.min(Math.max(tu.input.seconds || 3, 2), 8);
+        const useLast = !!tu.input.use_last_voice;
+        send({ tool: { name: 'enroll_voice', label: `Memorizando a voz de ${nome}${rel ? ' (' + rel + ')' : ''}` } });
+        send({ ui: { type: 'enroll_voice', name: nome, relation: rel, seconds: seg, useLast } });
+        if (useLast) return result(
+          `Cadastro de ${nome} disparado usando a voz que você ACABOU de ouvir — a pessoa NÃO precisa falar de novo. ` +
+          `O resultado chega numa mensagem de sistema em instantes; se a voz guardada tiver expirado, a mensagem pedirá uma gravação normal. ` +
+          `Enquanto isso, dê boas-vindas a ${nome} com calor.`
+        );
+        return result(
+          `Escuta armada para memorizar a voz de ${nome}${rel ? `, ${rel}` : ''}. ` +
+          `A gravação só COMEÇA quando você terminar de falar e a pessoa começar — ela tem até 25 segundos para iniciar, e são contados ${seg}s de FALA REAL (pausas não contam). ` +
+          `Então: TERMINE sua frase convidando ${nome} a falar (peça uma frase inteira, contínua — contar até dez, ou dizer o que gosta de fazer, funciona melhor que palavras soltas). ` +
+          `NÃO fique falando depois do convite, senão você ocupa o microfone. O resultado chega numa mensagem de sistema em seguida. ` +
+          `Se falhar, o motivo virá na mensagem — repasse a orientação e ofereça tentar de novo. Repetir o cadastro da mesma pessoa refina o perfil.`
+        );
+      }
+      case 'identify_voice': {
+        const seg = Math.min(Math.max(tu.input.seconds || 2, 1), 6);
+        send({ tool: { name: 'identify_voice', label: 'Reconhecendo a voz…' } });
+        send({ ui: { type: 'identify_voice', seconds: seg } });
+        return result(
+          `Escuta de identificação iniciada (${seg}s). O resultado aparece na próxima mensagem do sistema com o nome de quem está falando (ou o perfil, se for alguém de fora). ` +
+          `Enquanto isso, siga a conversa normalmente — não trave esperando.`
+        );
+      }
+      case 'monitor_play': {
+        send({ tool: { name: 'monitor_play', label: 'Iniciando exibição no monitor' } });
+        send({ ui: { type: 'monitor_play' } });
+        return result('Exibição iniciada no monitor. A audição do agente foi SUSPENSA automaticamente para o som do vídeo não ser confundido com a fala do operador — só volta quando ele usar o botão de comando do monitor ou fechar a tela. Apenas confirme brevemente que a exibição começou; não espere mais nada por voz agora.');
       }
       case 'cyber_scan': {
         send({ tool: { name: 'cyber_scan', label: 'Modo Cyber Security — varredura defensiva da rede e do sistema' } });
@@ -2626,7 +3041,7 @@ REGRA CRÍTICA: quando o operador perguntar "quais compromissos tenho?", "tenho 
 }
 
 // ferramentas expostas no modo LIVE (formato Realtime: function calling via data channel)
-const LIVE_TOOL_NAMES = ['agenda_add', 'agenda_update', 'agenda_remove', 'agenda_list', 'memory_save', 'get_weather', 'get_ai_news', 'investigate_news', 'open_website', 'analyze_camera', 'switch_camera', 'enroll_face', 'get_emails', 'read_email', 'read_document', 'wa_list_chats', 'wa_read_chat', 'wa_send_message', 'wa_allow', 'wa_auto_reply', 'wa_find_contact', 'council_review', 'analyze_market', 'portfolio_add', 'portfolio_remove', 'portfolio_view', 'ia_sem_medo', 'open_screen', 'close_screen', 'lottery_result', 'cyber_scan'];
+const LIVE_TOOL_NAMES = ['agenda_add', 'agenda_update', 'agenda_remove', 'agenda_list', 'memory_save', 'get_weather', 'get_ai_news', 'investigate_news', 'open_website', 'analyze_camera', 'switch_camera', 'enroll_face', 'get_emails', 'read_email', 'read_document', 'wa_list_chats', 'wa_read_chat', 'wa_send_message', 'wa_allow', 'wa_auto_reply', 'wa_find_contact', 'council_review', 'analyze_market', 'portfolio_add', 'portfolio_remove', 'portfolio_view', 'ia_sem_medo', 'open_screen', 'close_screen', 'lottery_result', 'cyber_scan', 'youtube_watch', 'monitor_play', 'enroll_voice', 'identify_voice', 'deep_investigate', 'watch_add', 'watch_check', 'watch_manage'];
 const LIVE_TOOLS = TOOLS
   .filter(t => LIVE_TOOL_NAMES.includes(t.name))
   .map(t => ({ type: 'function', name: t.name, description: t.description, parameters: t.input_schema }));
@@ -2814,6 +3229,17 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ...r, conferencia: nums.length ? { numeros: nums, acertos: nums.filter(n => r.dezenas.includes(n)) } : null });
     }
 
+    // ── YouTube: busca de vídeos p/ o monitor virtual ──
+    if (req.method === 'GET' && url.pathname === '/api/youtube') {
+      try {
+        const vids = await youtubeSearch(url.searchParams.get('q') || '', {
+          filtro: url.searchParams.get('f') || '',
+          limit: parseInt(url.searchParams.get('n') || '12', 10),
+        });
+        return json(res, 200, { videos: vids });
+      } catch (e) { return json(res, 200, { error: e.message, videos: [] }); }
+    }
+
     // ── cyber security: varredura defensiva do sistema/rede (só leitura, same-origin) ──
     if (req.method === 'GET' && url.pathname === '/api/cyber') {
       return json(res, 200, await securityScan({ events: SEC_EVENTS, port: PORT, focus: url.searchParams.get('focus') || 'geral' }));
@@ -2934,6 +3360,69 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, await investigateNews(q, parseInt(url.searchParams.get('days') || '7', 10), 8, url.searchParams.get('region') || ''));
     }
 
+    /* ── VIGILÂNCIA e INVESTIGAÇÃO por HTTP ───────────────────────────────
+       O modo LIVE (voz) não roda o laço de ferramentas do servidor: o
+       navegador é quem executa e devolve o texto ao modelo. Sem estas rotas,
+       watch_* e deep_investigate ficavam anunciadas para a voz mas sem
+       executor — o agente chamava, não obtinha nada e concluía que o modo
+       estava fora do ar. Aqui devolvemos o MESMO texto da versão em texto. */
+    if (url.pathname === '/api/watch') {
+      if (req.method === 'GET') {
+        const acao = url.searchParams.get('acao') || 'check';
+        if (acao === 'list') {
+          const w = watchRead();
+          return json(res, 200, {
+            total: w.alvos.length, pendentes: w.novidades.length,
+            ultimaVarredura: w.ultimaVarredura,
+            alvos: w.alvos.map(a => ({ termo: a.termo, fontes: a.fontes, ultimaVarredura: a.ultimaVarredura })),
+          });
+        }
+        if (url.searchParams.get('varrer') === '1') { try { await watchRun(); } catch {} }
+        const n = watchNovidades({ limpar: true });
+        const w = watchRead();
+        return json(res, 200, {
+          total: n.total, texto: n.texto,
+          alvos: w.alvos.length, termos: w.alvos.map(a => a.termo),
+          ultimaVarredura: w.ultimaVarredura,
+        });
+      }
+      if (req.method === 'POST') {
+        const { termo, fontes, uf } = JSON.parse(await readBody(req) || '{}');
+        if (!termo) return json(res, 400, { error: 'termo obrigatório' });
+        const w = watchRead();
+        if (w.alvos.some(a => a.termo.toLowerCase() === String(termo).toLowerCase()))
+          return json(res, 200, { ok: true, jaExistia: true, total: w.alvos.length });
+        const alvo = { id: crypto.randomUUID().slice(0, 8), termo: String(termo), fontes: fontes || 'licitacoes,noticias,diarios', uf: uf || '', criadoEm: new Date().toISOString(), ultimaVarredura: null };
+        w.alvos.push(alvo); watchWrite(w);
+        // baseline em 2º plano: o que já existe vira histórico, não alerta
+        watchRun({ alvoId: alvo.id }).then(() => {
+          const w2 = watchRead();
+          w2.novidades = w2.novidades.filter(n => n.alvoId !== alvo.id);
+          watchWrite(w2);
+        }).catch(() => {});
+        return json(res, 200, { ok: true, jaExistia: false, total: w.alvos.length });
+      }
+      if (req.method === 'DELETE') {
+        const alvo = String(url.searchParams.get('termo') || '').toLowerCase();
+        const w = watchRead();
+        const antes = w.alvos.length;
+        w.alvos = w.alvos.filter(a => !a.termo.toLowerCase().includes(alvo));
+        w.novidades = w.novidades.filter(n => w.alvos.some(a => a.id === n.alvoId));
+        watchWrite(w);
+        return json(res, 200, { ok: antes !== w.alvos.length, total: w.alvos.length, termos: w.alvos.map(a => a.termo) });
+      }
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/deep-investigate') {
+      const q = url.searchParams.get('q');
+      if (!q) return json(res, 400, { error: 'parâmetro q obrigatório' });
+      try {
+        const INTEL = await import('./intel.mjs');
+        const r = await INTEL.investigar(q, { fontes: url.searchParams.get('fontes') || 'auto', uf: url.searchParams.get('uf') || '' });
+        return json(res, 200, { total: r.total, relatorio: INTEL.relatorio(r), noticias: r.fontes?.noticias || [] });
+      } catch (e) { return json(res, 500, { error: e.message }); }
+    }
+
     // ── agenda CRUD ──
     if (url.pathname === '/api/agenda') {
       if (req.method === 'GET') return json(res, 200, { items: agendaSorted() });
@@ -2964,6 +3453,30 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'DELETE') {
         const ok = memRemove(url.searchParams.get('id'));
         return json(res, ok ? 200 : 404, { ok, items: memRead() });
+      }
+    }
+
+    // ── VOZES (biometria vocal) — quem está falando com o agente ──
+    if (url.pathname === '/api/voices') {
+      if (req.method === 'GET') {
+        // sem as amostras cruas: a lista é só para o agente saber quem conhece
+        const leve = voicesRead().map(v => ({ nome: v.nome, relacao: v.relacao, f0: v.f0, f1: v.f1, f2: v.f2, f3: v.f3, f0dev: v.f0dev, ltas: v.ltas, amostras: v.amostras }));
+        return json(res, 200, { voices: leve });
+      }
+      if (req.method === 'POST') {
+        const v = JSON.parse(await readBody(req) || '{}');
+        if (!v.nome || !Array.isArray(v.ltas)) return json(res, 400, { error: 'nome e ltas obrigatórios' });
+        const list = voicesRead();
+        const i = list.findIndex(x => x.nome.toLowerCase() === v.nome.toLowerCase());
+        if (i >= 0) list[i] = { ...list[i], ...v };
+        else list.push(v);
+        voicesWrite(list);
+        return json(res, 200, { ok: true, total: list.length });
+      }
+      if (req.method === 'DELETE') {
+        const nome = (url.searchParams.get('nome') || '').toLowerCase();
+        voicesWrite(voicesRead().filter(x => x.nome.toLowerCase() !== nome));
+        return json(res, 200, { ok: true });
       }
     }
 
@@ -3267,5 +3780,19 @@ server.listen(PORT, () => {
   console.log(`  Voz Edge TTS:      ✓ grátis (${EDGE_VOICE})`);
   console.log(`  Voz OpenAI/Live:   ${OPENAI_KEY ? '✓ fallback + modo LIVE' : '○ opcional'}`);
   console.log(`  ElevenLabs:        ${ELEVEN_KEY ? '✓ ativa' : '○ opcional'}`);
-  console.log(`  Gmail:             ${GOOGLE_ID && GOOGLE_SECRET ? (gmailConnected() ? '✓ conectado' : '○ configurado — falta autorizar (/oauth/google/start)') : '○ opcional — sem GOOGLE_CLIENT_ID'}\n`);
+  console.log(`  Gmail:             ${GOOGLE_ID && GOOGLE_SECRET ? (gmailConnected() ? '✓ conectado' : '○ configurado — falta autorizar (/oauth/google/start)') : '○ opcional — sem GOOGLE_CLIENT_ID'}`);
+  const nAlvos = watchRead().alvos.length;
+  console.log(`  Vigilância:        ${nAlvos ? `✓ ${nAlvos} tema(s) · varredura a cada 3h` : '○ nenhum tema — use watch_add'}\n`);
+
+  /* Varredura periódica das fontes primárias. A primeira roda 2 min após o
+     boot (deixa o servidor estabilizar) e depois a cada 3 horas. Só guarda
+     o que é novo — quem consome é o briefing e o watch_check. */
+  const varrer = () => {
+    if (!watchRead().alvos.length) return;
+    watchRun()
+      .then(r => { if (r.novos) console.log(`[watch] ${r.novos} novidade(s) em ${r.alvos} tema(s)`); })
+      .catch(e => console.warn('[watch] falhou:', e.message));
+  };
+  setTimeout(varrer, 120000);
+  setInterval(varrer, 3 * 3600 * 1000);
 });

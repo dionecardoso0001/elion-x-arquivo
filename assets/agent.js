@@ -138,11 +138,32 @@
         if (ev.ui.type === 'email')   ELX.email?.render(ev.ui.payload);
         if (ev.ui.type === 'switch_camera') { ELX.cam?.switchByHint?.(ev.ui.hint); pulse('qCam'); }
         if (ev.ui.type === 'enroll_face') { ELX.cam?.enroll?.(ev.ui.name, ev.ui.relation); pulse('qCam'); }
+        // ── biometria vocal: roda no cliente (é onde está o microfone) e o
+        //    resultado volta ao agente como mensagem de sistema ──
+        if (ev.ui.type === 'enroll_voice') {
+          ELX.voiceid?.enroll(ev.ui.name, ev.ui.relation, (ev.ui.seconds || 3) * 1000, { usarUltima: !!ev.ui.useLast })
+            .then(r => {
+              ELX.toast?.(r.ok ? `✓ ${r.msg}` : '✕ ' + r.msg, r.ok ? 'green' : 'red');
+              sendWhenIdle(`SISTEMA (biometria vocal): ${r.ok
+                ? `voz de ${ev.ui.name} cadastrada com sucesso (${r.msg}). Confirme ao operador com naturalidade.`
+                : `não consegui cadastrar a voz de ${ev.ui.name}: ${r.msg}. Peça para tentar de novo falando mais e mais perto do microfone.`}`);
+            }).catch(() => {});
+        }
+        if (ev.ui.type === 'identify_voice') {
+          ELX.voiceid?.identify((ev.ui.seconds || 2) * 1000)
+            .then(r => {
+              const txt = ELX.voiceid.descrever(r);
+              if (r?.quem) ELX.toast?.(`🎙 ${r.quem} está falando`, 'green');
+              sendWhenIdle(`SISTEMA (biometria vocal): ${txt || 'não consegui identificar a voz — peça para a pessoa falar um pouco mais.'}`);
+            }).catch(() => {});
+        }
         if (ev.ui.type === 'council') ELX.council?.render(ev.ui.payload);
         if (ev.ui.type === 'market')  { ELX.market?.set(ev.ui.symbol); if (ev.ui.note) ELX.market?.note(ev.ui.note); pulse('qMarket'); }
         if (ev.ui.type === 'portfolio') ELX.portfolio?.render(ev.ui.payload);
         if (ev.ui.type === 'lottery') ELX.lottery?.render(ev.ui.payload);
         if (ev.ui.type === 'cyber')   ELX.cyber?.render(ev.ui.payload);
+        if (ev.ui.type === 'monitor') ELX.monitor?.open(ev.ui.video, ev.ui.lista);
+        if (ev.ui.type === 'monitor_play') ELX.monitor?.play();
         // WhatsApp: o painel vive em whatsapp.html (iframe do visor) — aqui só damos
         // o retorno visível de que o agente mexeu nele
         if (ev.ui.type === 'whatsapp') {
@@ -209,6 +230,15 @@
 
   let currentCtl = null;   // AbortController do turno em curso
   let pendingSend = null;  // mensagem que chegou durante uma interrupção
+
+  /* Resultado assíncrono (biometria vocal etc.) chega segundos depois da
+     ferramenta ser chamada — se o turno ainda estiver gerando, send() faria
+     barge-in e ABORTARIA a resposta em andamento. Aqui esperamos a vez. */
+  async function sendWhenIdle(text, ms = 20000) {
+    const t0 = Date.now();
+    while (busy && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 220));
+    send(text, { silent: true });
+  }
 
   async function send(text, { silent = false } = {}) {
     text = (text || '').trim();
@@ -314,6 +344,7 @@
   $('qaNews').onclick   = () => send('Verifique as notícias de IA mais recentes e me dê um resumo das 5 mais relevantes.');
   $('qaAgenda').onclick = () => send('Liste meus próximos compromissos da agenda.');
   $('qaBrain').onclick = () => ELX.brain.open(); // janela rastreada → o ELION consegue fechá-la por voz
+  $('qaCyber').onclick = () => ELX.cyber.open(); // console de defesa cibernética (simulação + telemetria real)
   $('qaMarket').onclick = () => {
     const sym = ($('mktQ').value.trim() || ELX.market?.symbol || '').toUpperCase();
     if (!sym) { $('mktQ').focus(); ELX.toast('Informe um ativo no quadrante MERCADO (ex.: AAPL, BTCUSD, PETR4).', 'red'); return; }
