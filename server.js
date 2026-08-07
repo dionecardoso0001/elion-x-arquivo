@@ -1425,21 +1425,57 @@ function brainData() {
   const add = (id, label, group, size, meta) => nodes.push({ id, label, group, size: size || 8, meta: meta || null });
   const link = (s, t, kind) => links.push({ source: s, target: t, kind: kind || 'sys' });
   add('elion', 'ELION‑X', 'core', 34, { desc: 'Núcleo neural — inteligência central' });
-  const caps = [
-    ['cap:agenda', 'Agenda', 'compromissos'], ['cap:memoria', 'Memória', 'fatos & lembretes'],
-    ['cap:mercado', 'Mercado', 'análise técnica'], ['cap:carteira', 'Carteira', 'investimentos'],
-    ['cap:conselho', 'Conselho', 'decisões DMAD'], ['cap:visao', 'Visão', 'câmera & rostos'],
-    ['cap:whatsapp', 'WhatsApp', 'mensagens'], ['cap:email', 'E‑mail', 'Gmail'],
-    ['cap:noticias', 'Notícias', 'IA & mundo'], ['cap:clima', 'Clima', 'meteorologia'],
-    ['cap:documentos', 'Documentos', 'PDF/Word/PPT'], ['cap:voz', 'Voz / AO VIVO', 'conversa'],
+
+  /* CAPACIDADES DERIVADAS DAS FERRAMENTAS REAIS.
+     Antes esta lista era fixa, escrita à mão — e envelheceu: mostrava 12
+     capacidades quando o agente já tinha 42 ferramentas, escondendo do painel
+     a vigilância, a biometria vocal, o cyber, o simulador de loterias e o
+     monitor. Agora os nós saem de TOOLS: ferramenta nova aparece sozinha.
+     Toda ferramenta não mapeada cai em "Outras" — nunca some do painel. */
+  const DOMINIOS = [
+    { id: 'agenda',      label: 'Agenda',        sub: 'compromissos',        tools: ['agenda_add', 'agenda_list', 'agenda_remove', 'agenda_update'] },
+    { id: 'memoria',     label: 'Memória',       sub: 'fatos & lembretes',   tools: ['memory_save', 'memory_remove'] },
+    { id: 'vigilancia',  label: 'Vigilância',    sub: 'monitoramento 3h',    tools: ['watch_add', 'watch_check', 'watch_manage'] },
+    { id: 'investigacao',label: 'Investigação',  sub: 'fontes primárias',    tools: ['deep_investigate', 'investigate_news', 'web_search'] },
+    { id: 'noticias',    label: 'Notícias',      sub: 'IA & mundo',          tools: ['get_ai_news'] },
+    { id: 'whatsapp',    label: 'WhatsApp',      sub: 'mensagens',           tools: ['wa_list_chats', 'wa_read_chat', 'wa_find_contact', 'wa_send_message', 'wa_allow', 'wa_auto_reply'] },
+    { id: 'email',       label: 'E‑mail',        sub: 'Gmail',               tools: ['get_emails', 'read_email'] },
+    { id: 'visao',       label: 'Visão',         sub: 'câmera & rostos',     tools: ['analyze_camera', 'switch_camera', 'enroll_face'] },
+    { id: 'vozbio',      label: 'Biometria Vocal', sub: 'quem está falando', tools: ['enroll_voice', 'identify_voice'] },
+    { id: 'documentos',  label: 'Documentos',    sub: 'PDF/Word/Excel/código', tools: ['read_document'] },
+    { id: 'conselho',    label: 'Conselho',      sub: 'decisões DMAD',       tools: ['council_review'] },
+    { id: 'mercado',     label: 'Mercado',       sub: 'análise técnica',     tools: ['analyze_market'] },
+    { id: 'carteira',    label: 'Carteira',      sub: 'investimentos',       tools: ['portfolio_add', 'portfolio_remove', 'portfolio_view'] },
+    { id: 'loteria',     label: 'Loterias',      sub: 'simulador matemático', tools: ['lottery_simulate', 'lottery_result'] },
+    { id: 'cyber',       label: 'Cyber Security', sub: 'defesa (só leitura)', tools: ['cyber_scan'] },
+    { id: 'clima',       label: 'Clima',         sub: 'meteorologia oficial', tools: ['get_weather'] },
+    { id: 'telas',       label: 'Controle de Telas', sub: 'operação sem mouse', tools: ['open_screen', 'close_screen', 'open_website'] },
+    { id: 'monitor',     label: 'Monitor / Vídeo', sub: 'YouTube em 2ª tela', tools: ['youtube_watch', 'monitor_play'] },
+    { id: 'curso',       label: 'IA Sem Medo',   sub: 'base do curso',       tools: ['ia_sem_medo'] },
   ];
-  for (const [id, label, sub] of caps) { add(id, label, 'capability', 16, { sub }); link('elion', id, 'core'); }
+
+  const mapeadas = new Set(DOMINIOS.flatMap(d => d.tools));
+  const orfas = TOOLS.map(t => t.name).filter(n => !mapeadas.has(n));
+  if (orfas.length) DOMINIOS.push({ id: 'outras', label: 'Outras', sub: 'ainda sem domínio', tools: orfas });
+
+  for (const d of DOMINIOS) {
+    const reais = d.tools.filter(n => TOOLS.some(t => t.name === n));
+    if (!reais.length) continue;                    // domínio cujas ferramentas saíram do ar
+    add('cap:' + d.id, d.label, 'capability', 14 + Math.min(8, reais.length * 2),
+        { sub: d.sub, ferramentas: reais.length, lista: reais.join(', ') });
+    link('elion', 'cap:' + d.id, 'core');
+  }
   const CAP = 24;
   try { agendaSorted().slice(0, CAP).forEach(i => { add('ag:' + i.id, i.title, 'record', 9, { when: `${i.date} ${i.time}`, where: i.location, sub: 'compromisso' }); link('cap:agenda', 'ag:' + i.id, 'rec'); }); } catch {}
   try { memRead().slice(-CAP).forEach(m => { add('mem:' + m.id, (m.content || '').slice(0, 46), 'record', 8, { sub: 'memória', full: m.content }); link('cap:memoria', 'mem:' + m.id, 'rec'); }); } catch {}
   try { portfolioRead().forEach(p => { add('pf:' + p.id, p.titulo, 'record', 10, { sub: p.tipo, valor: p.valor }); link('cap:carteira', 'pf:' + p.id, 'rec'); }); } catch {}
   try { facesRead().forEach((f, i) => { add('face:' + i, f.name, 'record', 9, { sub: f.relation || 'rosto' }); link('cap:visao', 'face:' + i, 'rec'); }); } catch {}
   try { JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'wa-log.json'), 'utf8')).slice(-12).forEach((l, i) => { add('wa:' + i, l.contact || 'contato', 'record', 8, { sub: 'auto‑resposta', text: l.reply }); link('cap:whatsapp', 'wa:' + i, 'rec'); }); } catch {}
+  // vozes cadastradas — a biometria vocal deixa de ser um nó vazio
+  try { voicesRead().forEach((v, i) => { add('voz:' + i, v.nome, 'record', 9, { sub: v.relacao || 'voz', tom: Math.round(v.f0) + ' Hz', amostras: (v.amostras || []).length }); link('cap:vozbio', 'voz:' + i, 'rec'); }); } catch {}
+  // alvos sob vigilância — é a carteira de clientes do operador, o painel deve mostrá-la
+  try { watchRead().alvos.slice(0, CAP).forEach(a => { add('wt:' + a.id, a.termo.replace(/"/g, '').slice(0, 40), 'record', 9, { sub: 'vigiado', fontes: a.fontes, desde: (a.criadoEm || '').slice(0, 10) }); link('cap:vigilancia', 'wt:' + a.id, 'rec'); }); } catch {}
+
   const obs = obsidianGraph();
   let fusionCount = 0;
   if (obs.ok && obs.notes.length) {
@@ -1465,7 +1501,10 @@ function brainData() {
     }
   }
   return { nodes, links, obsidian: { ok: obs.ok, vault: obs.vault, vaultName: obs.vaultName || '', count: obs.count, truncated: !!obs.truncated, error: obs.error || null },
-    stats: { capabilities: caps.length, records: nodes.filter(n => n.group === 'record').length, obsidian: obs.count || 0, fusion: fusionCount } };
+    stats: { capabilities: nodes.filter(n => n.group === 'capability').length,
+             ferramentas: TOOLS.length,
+             records: nodes.filter(n => n.group === 'record').length,
+             obsidian: obs.count || 0, fusion: fusionCount } };
 }
 function memWrite(list) {
   fs.writeFileSync(MEMORY_FILE, JSON.stringify(list, null, 2), 'utf8');
