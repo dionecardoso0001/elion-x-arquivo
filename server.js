@@ -495,11 +495,11 @@ const TOOLS = [
   },
   {
     name: 'open_screen',
-    description: 'ABRE por comando de voz/texto qualquer SUBTELA/painel da plataforma, para o operador NÃO precisar usar o mouse. Use sempre que ele pedir para "abrir/mostrar/exibir a tela|painel de X": "abre a câmera", "ativa a visão", "abre o WhatsApp", "abre o segundo cérebro / painel de controle", "abre os investimentos / o mapa de ações", "mostra minha carteira", "abre/consulta meus e-mails", "abre as notícias", "abre o clima", "abre a agenda", "abre o curso IA Sem Medo". IMPORTANTE: para VER/analisar o que a câmera capta continue usando analyze_camera — open_screen com screen="camera" apenas LIGA o sensor óptico, sem analisar.',
+    description: 'ABRE por comando de voz/texto qualquer SUBTELA/painel da plataforma, para o operador NÃO precisar usar o mouse. Use sempre que ele pedir para "abrir/mostrar/exibir a tela|painel de X": "abre a câmera", "ativa a visão", "abre o WhatsApp", "abre o segundo cérebro / painel de controle", "abre os investimentos / o mapa de ações", "mostra minha carteira", "abre/consulta meus e-mails", "abre as notícias", "abre o clima", "abre a agenda", "abre o curso IA Sem Medo", "abre a TV do sorteio", "mostra os números na telinha". A tela "loteria" é uma MINI TV que exibe as combinações em bolas animadas — abra-a quando ele quiser VER os números, e ela também aparece sozinha ao final de lottery_simulate. IMPORTANTE: para VER/analisar o que a câmera capta continue usando analyze_camera — open_screen com screen="camera" apenas LIGA o sensor óptico, sem analisar.',
     input_schema: {
       type: 'object',
       properties: {
-        screen: { type: 'string', description: 'Qual tela abrir: "camera" (visão computacional), "whatsapp", "noticias", "clima", "agenda", "brain" (Painel de Controle / Segundo Cérebro), "market" (Investimentos / mapa de ações), "carteira", "email", "conselho", "curso" (IA Sem Medo), "site". Pode ser texto livre — o sistema reconhece sinônimos.' },
+        screen: { type: 'string', description: 'Qual tela abrir: "camera" (visão computacional), "whatsapp", "noticias", "clima", "agenda", "brain" (Painel de Controle / Segundo Cérebro), "market" (Investimentos / mapa de ações), "carteira", "email", "conselho", "curso" (IA Sem Medo), "loteria" (MINI TV do sorteio — mostra as combinações em bolas, como um sorteio de verdade), "monitor" (tela de vídeo), "cyber", "site". Pode ser texto livre — o sistema reconhece sinônimos.' },
         query: { type: 'string', description: 'Contexto opcional: para "market" o ativo (ex.: PETR4, BTCUSD, IBOV); para "clima" a cidade; para "site" a URL ou domínio.' },
       },
       required: ['screen'],
@@ -2325,6 +2325,10 @@ function canonScreen(s) {
   if (/ia sem medo|meu curso|advancedtech|garoto.?propaganda/.test(t)) return 'curso';
   if (/monitor|\bv[íi]deo\b|youtube|\byt\b|tela do v[íi]deo|filme|assistir/.test(t)) return 'monitor';
   if (/cyber|seguran[çc]a|firewall|ataque|invas[ãa]o|hacker|v[íi]rus|soc\b|defesa/.test(t)) return 'cyber';
+  // a mini TV do sorteio ganha prioridade sobre o painel de resultado: "tela",
+  // "TV", "painel" e "monitor" junto de loteria significam a subtela visual
+  if (/mini ?tv|telinha|tvzinha/.test(t)) return 'loteria';   // como o operador chama a subtela
+  if (/(tv|tela|painel|monitor|visor).*(sorteio|loteria|loto|mega|quina|sena|jogo)|(sorteio|loteria|loto|mega|quina|sena).*(tv|tela|painel|visual)/.test(t)) return 'loteria';
   if (/loteria|loto|mega|quina|sena|sorteio|jogo da caixa|resultado.*caixa/.test(t)) return 'loteria';
   if (/\bsite\b|\bweb\b|navegador|p[áa]gina|\burl\b/.test(t)) return 'site';
   if (/tela|painel|visor|isso|essa|aberto|aberta|janela/.test(t)) return 'visor';

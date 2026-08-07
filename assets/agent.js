@@ -161,6 +161,7 @@
         if (ev.ui.type === 'market')  { ELX.market?.set(ev.ui.symbol); if (ev.ui.note) ELX.market?.note(ev.ui.note); pulse('qMarket'); }
         if (ev.ui.type === 'portfolio') ELX.portfolio?.render(ev.ui.payload);
         if (ev.ui.type === 'lottery') ELX.lottery?.render(ev.ui.payload);
+        if (ev.ui.type === 'lottery_sim') ELX.lotterySim?.render(ev.ui.payload);
         if (ev.ui.type === 'cyber')   ELX.cyber?.render(ev.ui.payload);
         if (ev.ui.type === 'monitor') ELX.monitor?.open(ev.ui.video, ev.ui.lista);
         if (ev.ui.type === 'monitor_play') ELX.monitor?.play();

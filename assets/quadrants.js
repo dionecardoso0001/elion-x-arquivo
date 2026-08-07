@@ -687,6 +687,11 @@
         case 'market':        ELX.market.study(opts.symbol || opts.query || ''); break;
         case 'council':       document.getElementById('qaCouncil')?.click(); break;
         case 'email_connect': ELX.email.connect(); break;
+        // mini TV do sorteio: reabre a última análise, ou avisa que não há nenhuma
+        case 'loteria':
+          if (ELX.lotterySim?.data?.jogos?.length) ELX.lotterySim.open();
+          else ELX.toast('Peça primeiro uma análise: "Elion, analisa os últimos sorteios da Mega-Sena".', '');
+          break;
         // noticias / clima / agenda / carteira / email(conectado) / curso já chegam renderizados via seus eventos ui
       }
     },
@@ -700,6 +705,9 @@
           break;
         case 'monitor':
           if (!ELX.monitor?.close()) ELX.toast('O monitor já está desligado, Senhor.', '');
+          break;
+        case 'loteria':
+          if (!ELX.lotterySim?.close()) ELX.toast('A tela do sorteio já está fechada, Senhor.', '');
           break;
         case 'brain':
           if (!ELX.brain.close()) ELX.toast('O Segundo Cérebro não está aberto.', '');
@@ -715,6 +723,7 @@
           ELX.toast('Esse painel é fixo na tela, Senhor — fica sempre visível.', '');
           break;
         case 'all':
+          ELX.lotterySim?.close();
           ELX.monitor?.close();
           if (visorOpen) wvHide();
           ELX.brain.close();
@@ -722,7 +731,8 @@
           ELX.toast('Telas fechadas.', 'green');
           break;
         default: // "fecha isso", "pode parar", "finaliza" → fecha o que estiver aberto, por prioridade
-          if (ELX.monitor?.on) ELX.monitor.close();   // o monitor cobre tudo → é o primeiro a sair
+          if (ELX.lotterySim?.on) ELX.lotterySim.close();  // a mini TV cobre tudo → sai primeiro
+          else if (ELX.monitor?.on) ELX.monitor.close();   // o monitor vem em seguida
           else if (visorOpen) wvHide();
           else if (ELX.brain.isOpen()) ELX.brain.close();
           else if (camOn) { camStop(); ELX.toast('Câmera desligada.', 'green'); }
@@ -1050,5 +1060,110 @@
     get on() { return !!(monWrap && !monWrap.hidden); },
     get playing() { return monState === 'playing'; },
     get video() { return monVideo; },
+  };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MINI TV DA LOTERIA — subtela de sorteio
+   Abre por comando ("abre a tela do sorteio"), mostra as combinações uma a
+   uma como num sorteio de verdade, e some com o mesmo relâmpago do monitor
+   de vídeo — a plataforma tem um vocabulário visual só.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(() => {
+  const $ = id => document.getElementById(id);
+  const tvWrap = $('tvWrap');
+  if (!tvWrap) return;
+
+  let dados = null;      // último payload do simulador
+  let pagina = 0;        // qual jogo está em exibição nas bolas
+  let boltTimer = null;
+
+  const POR_PAG = 1;     // um jogo por vez nas bolas grandes
+
+  function pinta() {
+    if (!dados) return;
+    const jogos = dados.jogos || [];
+    const total = Math.max(1, jogos.length);
+    pagina = Math.max(0, Math.min(pagina, total - 1));
+
+    $('tvJogo').textContent = (dados.nome || 'SORTEIO').toUpperCase();
+    $('tvTag').textContent  = dados.estrategia ? `estratégia ${dados.estrategia}` : 'combinações';
+    $('tvPag').textContent  = `${pagina + 1} / ${total}`;
+
+    // bolas do jogo em foco — reanimadas a cada troca, com atraso em cascata
+    const bolas = $('tvBolas');
+    bolas.innerHTML = '';
+    const atual = jogos[pagina];
+    if (atual) {
+      atual.dezenas.forEach((d, i) => {
+        const b = document.createElement('div');
+        b.className = 'tv-bola' + (dados.estrategia === 'frios' ? ' fria' : '');
+        b.textContent = String(d).padStart(2, '0');
+        b.style.animationDelay = (i * 90) + 'ms';   // cai uma de cada vez
+        bolas.appendChild(b);
+      });
+    }
+
+    // demais jogos em lista
+    const lista = $('tvJogos');
+    lista.innerHTML = '';
+    jogos.forEach((j, i) => {
+      const l = document.createElement('div');
+      l.className = 'tv-linha';
+      l.style.animationDelay = (300 + i * 60) + 'ms';
+      l.style.opacity = i === pagina ? '1' : '.62';
+      l.innerHTML = `<b>${String(i + 1).padStart(2, '0')}</b>` +
+        `<span class="tv-dz">${j.dezenas.map(d => String(d).padStart(2, '0')).join(' · ')}</span>` +
+        `<span class="tv-meta">soma ${j.soma} · ${j.pares}p/${j.impares}i</span>`;
+      l.onclick = () => { pagina = i; pinta(); };
+      lista.appendChild(l);
+    });
+
+    // rodapé: probabilidade real + a ressalva, sempre visível
+    const p = dados.prob;
+    const s = dados.stats;
+    const partes = [];
+    if (p?.faixas?.length) partes.push(`Chance máxima: <b>${p.faixas[0].chance}</b>`);
+    if (p?.custo) partes.push(`aposta R$ ${p.custo.toFixed(2)}`);
+    if (s?.concursos) partes.push(`base: ${s.concursos} concursos`);
+    $('tvInfo').innerHTML = partes.join(' · ') +
+      '<br>Sorteios são independentes — nenhuma análise do passado aumenta a chance do próximo.';
+  }
+
+  function abrir(payload) {
+    if (payload) { dados = payload; pagina = 0; }
+    if (!dados) {
+      dados = { nome: 'Loteria', estrategia: '', jogos: [],
+                prob: null, stats: null };
+    }
+    clearTimeout(boltTimer);
+    tvWrap.classList.remove('tv-bolt');
+    tvWrap.hidden = false;
+    pinta();
+    return true;
+  }
+
+  function fechar() {
+    if (tvWrap.hidden) return false;
+    tvWrap.classList.add('tv-bolt');          // dispara flash + colapso
+    clearTimeout(boltTimer);
+    boltTimer = setTimeout(() => {
+      tvWrap.hidden = true;
+      tvWrap.classList.remove('tv-bolt');
+    }, 560);                                   // = duração do relâmpago no CSS
+    return true;
+  }
+
+  $('tvOff')  && ($('tvOff').onclick  = fechar);
+  $('tvPrev') && ($('tvPrev').onclick = () => { pagina--; pinta(); });
+  $('tvNext') && ($('tvNext').onclick = () => { pagina++; pinta(); });
+  tvWrap.addEventListener('click', e => { if (e.target.id === 'tvBackdrop') fechar(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !tvWrap.hidden) fechar(); });
+
+  ELX.lotterySim = {
+    open: abrir, close: fechar,
+    render: payload => abrir(payload),          // o simulador chama isto ao terminar
+    get on() { return !tvWrap.hidden; },
+    get data() { return dados; },
   };
 })();

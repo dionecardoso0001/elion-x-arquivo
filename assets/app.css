@@ -1065,3 +1065,108 @@ body {
   .mon-base { width: 180px; }
   .mon-title { font-size: 13px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MINI TV DA LOTERIA — subtela de sorteio
+   Some com o mesmo relâmpago do monitor de vídeo, para a linguagem visual da
+   plataforma ser uma só. O [hidden] precisa de !important porque o display
+   flex abaixo venceria o atributo — foi exatamente o bug do monitor.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#tvWrap { position: fixed; inset: 0; z-index: 88; display: flex;
+          align-items: center; justify-content: center; }
+#tvWrap[hidden] { display: none !important; }
+
+#tvBackdrop { position: absolute; inset: 0; background: rgba(2,6,14,.82);
+              backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+
+#tvSet { position: relative; z-index: 2; animation: tvIn .5s cubic-bezier(.16,1,.3,1) both; }
+@keyframes tvIn { from { opacity: 0; transform: translateY(26px) scale(.94); }
+                  to   { opacity: 1; transform: none; } }
+
+.tv-bezel { width: min(680px, 92vw); background: linear-gradient(180deg,#0d1522,#070b13);
+            border: 1px solid rgba(0,212,255,.30); border-radius: 16px;
+            padding: 10px 10px 0; box-shadow: 0 30px 90px rgba(0,0,0,.75),
+            0 0 60px rgba(0,150,255,.16), inset 0 1px 0 rgba(255,255,255,.06); }
+
+.tv-brand { display: flex; align-items: center; gap: 7px; font-size: 10px; letter-spacing: 2.4px;
+            color: #6fd2ff; padding: 2px 4px 8px; text-transform: uppercase; }
+.tv-led { width: 7px; height: 7px; border-radius: 50%; background: #19e57a;
+          box-shadow: 0 0 9px #19e57a; animation: tvLed 2.2s ease-in-out infinite; }
+@keyframes tvLed { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+.tv-screen { position: relative; background: radial-gradient(ellipse at 50% 12%,#0a1c30,#04070f 72%);
+             border-radius: 10px; padding: 16px 18px 20px; overflow: hidden;
+             border: 1px solid rgba(0,212,255,.14); min-height: 240px; }
+
+.tv-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.tv-head h4 { margin: 0; font-size: 17px; letter-spacing: 1.6px; color: #eaf7ff; font-weight: 700; }
+#tvTag { margin-left: auto; font-size: 9.5px; letter-spacing: 1.6px; color: #7fa8c8; text-transform: uppercase; }
+
+/* bolas do sorteio — entram uma a uma, como no sorteio de verdade */
+.tv-bolas { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; margin-bottom: 14px; }
+.tv-bola { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center;
+           justify-content: center; font-weight: 800; font-size: 16px; color: #04121f;
+           background: radial-gradient(circle at 34% 30%,#ffffff,#8fdcff 46%,#1b8fd8 100%);
+           box-shadow: 0 4px 14px rgba(0,140,220,.5), inset 0 -3px 8px rgba(0,60,110,.35);
+           animation: tvBola .42s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes tvBola { from { opacity: 0; transform: scale(.2) translateY(-16px) } to { opacity: 1; transform: none } }
+.tv-bola.fria { background: radial-gradient(circle at 34% 30%,#ffffff,#c9b6ff 46%,#6a4fd8 100%);
+                box-shadow: 0 4px 14px rgba(110,80,220,.45), inset 0 -3px 8px rgba(50,30,110,.35); }
+
+/* lista de jogos gerados */
+.tv-jogos { display: flex; flex-direction: column; gap: 6px; }
+.tv-linha { display: flex; align-items: center; gap: 8px; font-size: 12px;
+            background: rgba(0,212,255,.045); border: 1px solid rgba(0,212,255,.12);
+            border-radius: 7px; padding: 6px 10px;
+            animation: tvLinha .38s ease-out both; }
+@keyframes tvLinha { from { opacity: 0; transform: translateX(-14px) } to { opacity: 1; transform: none } }
+.tv-linha b { color: #6fd2ff; min-width: 26px; font-size: 11px; }
+.tv-dz { font-family: Consolas, monospace; letter-spacing: 1.4px; color: #eaf7ff; font-weight: 600; }
+.tv-meta { margin-left: auto; font-size: 9.5px; color: #7fa8c8; white-space: nowrap; }
+
+.tv-info { margin-top: 12px; font-size: 10.5px; color: #8fa8c4; line-height: 1.55;
+           border-top: 1px solid rgba(0,212,255,.12); padding-top: 9px; }
+.tv-info b { color: #6fd2ff; }
+
+/* vidro e varredura — dão o ar de tubo antigo */
+.tv-glass { position: absolute; inset: 0; pointer-events: none; border-radius: 10px;
+            background: linear-gradient(115deg,rgba(255,255,255,.05) 0%,transparent 38%,transparent 72%,rgba(255,255,255,.03) 100%); }
+.tv-scan { position: absolute; inset: 0; pointer-events: none; border-radius: 10px; opacity: .16;
+           background: repeating-linear-gradient(0deg,rgba(0,212,255,.5) 0 1px,transparent 1px 3px); }
+
+.tv-base { display: flex; align-items: center; gap: 10px; padding: 9px 6px; }
+.tv-base button { background: rgba(0,212,255,.08); border: 1px solid rgba(0,212,255,.22);
+                  color: #b8e4ff; border-radius: 7px; padding: 5px 11px; cursor: pointer;
+                  font-size: 11px; letter-spacing: 1px; transition: all .18s; }
+.tv-base button:hover { background: rgba(0,212,255,.18); color: #fff; }
+#tvOff { margin-left: auto; border-color: rgba(255,90,90,.3); color: #ffb0b0; }
+#tvOff:hover { background: rgba(255,90,90,.16); color: #fff; }
+#tvPag { font-size: 11px; color: #7fa8c8; min-width: 46px; text-align: center; }
+
+.tv-pe { width: 130px; height: 12px; margin: 0 auto; border-radius: 0 0 9px 9px;
+         background: linear-gradient(180deg,#0d1522,#060a11); border: 1px solid rgba(0,212,255,.2);
+         border-top: none; }
+
+/* ── desligamento em relâmpago (mesmo vocabulário do monitor de vídeo) ── */
+#tvBolt { position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 3; }
+#tvBolt i { position: absolute; top: -6%; width: 3px; height: 116%; opacity: 0;
+            background: linear-gradient(180deg,transparent,#dff4ff 18%,#6fd2ff 52%,transparent);
+            filter: drop-shadow(0 0 12px #6fd2ff); }
+#tvWrap.tv-bolt #tvBolt { opacity: 1; }
+#tvWrap.tv-bolt #tvBolt i:nth-child(1) { left: 30%; transform: rotate(-12deg); animation: tvRaio .40s ease-out .02s both; }
+#tvWrap.tv-bolt #tvBolt i:nth-child(2) { left: 63%; transform: rotate(10deg);  animation: tvRaio .36s ease-out .10s both; }
+#tvWrap.tv-bolt #tvBolt i:nth-child(3) { left: 46%; transform: rotate(-3deg);  animation: tvRaio .32s ease-out .17s both; }
+@keyframes tvRaio { 0% { opacity: 0; transform: scaleY(.2) } 25% { opacity: 1 } 100% { opacity: 0; transform: scaleY(1) } }
+#tvWrap.tv-bolt #tvBackdrop { animation: tvFlash .55s ease-out both; }
+@keyframes tvFlash { 0% { background: rgba(2,6,14,.82) } 12% { background: rgba(190,240,255,.55) }
+                     30% { background: rgba(2,6,14,.7) } 100% { background: rgba(2,6,14,0) } }
+#tvWrap.tv-bolt #tvSet { animation: tvColapso .5s cubic-bezier(.7,0,.9,.4) both; }
+@keyframes tvColapso { 0% { transform: none; opacity: 1 }
+                       55% { transform: scaleY(.02) scaleX(1.04); opacity: 1 }
+                       100% { transform: scaleY(.02) scaleX(0); opacity: 0 } }
+
+@media (max-width: 640px) {
+  .tv-bezel { width: 94vw; padding: 8px 8px 0; }
+  .tv-bola { width: 38px; height: 38px; font-size: 14px; }
+  .tv-linha { font-size: 11px; }
+}
