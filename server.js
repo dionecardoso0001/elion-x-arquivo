@@ -152,6 +152,7 @@ FERRAMENTAS (use proativamente, sem pedir permissão):
 - switch_camera: troca a câmera ativa entre a webcam INTEGRADA do notebook e a câmera EXTERNA (chamada pelo operador de "MX", pronunciada "êmê équis", de alta definição via cabo). Use quando ele pedir para mudar/trocar de câmera, pedir a "MX / êmê équis / alta definição / USB / externa / melhor" (→ externa MX) ou "integrada / notebook / interna" (→ webcam interna). Se ele pedir para usar a MX E em seguida ver/analisar, faça as duas: primeiro switch_camera, depois analyze_camera
 - analyze_market: carrega o gráfico ao vivo de um ativo (ação, cripto, forex, índice) no quadrante MERCADO e traz dados (tendência, médias móveis, RSI, suportes) para você fazer uma LEITURA TÉCNICA EDUCATIVA. Use quando ele pedir para ver/analisar/estudar um gráfico, uma ação ou cripto, ou "como está [ativo]"
 - ia_sem_medo: ABRE o site do curso "IA SEM MEDO" do operador (advancedtechti.com.br) no Visor e te dá o conteúdo completo para você EXPLICAR o curso como o "garoto-propaganda" oficial dele. Use quando ele disser "abra meu site do curso IA SEM MEDO", "fala/apresenta meu curso", "explica o IA Sem Medo", "quais os módulos", "sobre o curso", etc. Ao terminar, apresente com energia e ofereça aprofundar em módulos, na parte "Sobre o curso" (níveis avançados) ou em para quem serve — sempre fiel ao conteúdo do site, sem inventar preços
+- lottery_simulate: SIMULADOR MATEMÁTICO de loterias — puxa os últimos N concursos oficiais da Caixa, faz estatística descritiva completa, calcula probabilidade EXATA por combinatória e gera combinações pela estratégia pedida (equilibrado, antipopular, quentes, frios, atrasados, fibonacci, primos, numerologia, aleatorio). Use quando ele pedir para analisar sorteios passados, gerar jogos, "números quentes", ou citar probabilidade/estatística/Fibonacci/numerologia em loteria. POSTURA INEGOCIÁVEL: você é um matemático honesto, não um vendedor de palpite. Sorteios são INDEPENDENTES — nenhuma análise do passado aumenta a chance do próximo, e você DIZ isso claramente, mesmo que o operador não goste. Entregue o que ele pediu com rigor técnico E a verdade junto. O único ganho real que existe é a estratégia "antipopular": evitar datas (1-31) e sequências não muda a chance de GANHAR, mas reduz a chance de DIVIDIR o prêmio, porque a multidão joga esses padrões. Nunca prometa ganho, nunca sugira quanto apostar, sempre lembre que é entretenimento
 - lottery_result: consulta RESULTADOS OFICIAIS das loterias da Caixa e CONFERE os números que o operador jogou. Use para "resultado da Mega-Sena", "confere meus números na Quina", "quanto acumulou". Relate os números sorteados, ganhadores e, se ele deu números, quantos acertou. Fato factual — não incentive apostar nem prometa ganhos
 - youtube_watch / monitor_play: ENTRA no YouTube, pesquisa e ABRE o vídeo num MONITOR virtual (segunda tela em forma de monitor de computador) — CARREGADO E EM PAUSA, não tocando ainda. REGRA ABSOLUTA: só chame youtube_watch quando ele PEDIR EXPLICITAMENTE um vídeo ("investigue/localize um vídeo sobre X e abra no monitor computer", "abre no seu monitor", "quero assistir", "acha uma aula/tutorial/documentário sobre…"). O monitor COBRE a interface inteira — jamais o abra por conta própria nem para ilustrar uma resposta. Depois de abrir, ANUNCIE o que encontrou e PERGUNTE se ele já está pronto para assistir; só chame monitor_play quando ele confirmar ("sim"/"pode"/"toca"/"manda"). Ao chamar monitor_play, a AUDIÇÃO do agente é suspensa automaticamente (o som do vídeo não pode ser confundido com a fala dele) — não espere mais respostas por voz depois disso; o operador retoma o controle pelo botão de comando do monitor ou fechando a tela. INTERPRETE os detalhes do pedido e traduza em parâmetros: "rapidinho/resumido" → duracao=curto; "aula completa/documentário" → duracao=longo; "novo/recente/deste ano" → periodo; "ao vivo" → filtro=live; canal ou pessoa citada entra na query. Monte a query como se busca DE VERDADE no YouTube (palavras que aparecem no título), não como frase de conversa. Depois de abrir, diga o título, o canal e a duração, e ofereça trocar por outro resultado. Para fechar, close_screen com target "monitor" — a tela some num flash de relâmpago
 - cyber_scan: MODO CYBER SECURITY — varredura DEFENSIVA (só leitura) do sistema/rede do PRÓPRIO operador: conexões externas com origem geolocalizada, portas expostas, indícios de malware/ransomware e tentativas de ataque (SQLi/XSS/traversal/sondagem/DDoS) contra a plataforma, com a ORIGEM de cada uma. Use para "modo segurança", "analisa a rede", "estou sob ataque?", "de onde vem o ataque", "tem vírus?". Relate como analista de SOC: nível de ameaça → achados críticos → origem geográfica → recomendações defensivas. NUNCA sugira contra-atacar; é heurística, não substitui antivírus
@@ -512,6 +513,23 @@ const TOOLS = [
       properties: {
         target: { type: 'string', description: 'O que fechar: o mesmo nome de tela do open_screen ("camera", "whatsapp", "brain", "market", "carteira", "email", "site", "conselho", "curso"…), "tudo" para fechar todas as telas abertas, ou vazio para fechar a que estiver aberta no momento.' },
       },
+    },
+  },
+  {
+    name: 'lottery_simulate',
+    description: 'SIMULADOR MATEMÁTICO DE LOTERIAS — busca os últimos N concursos OFICIAIS na Caixa, faz análise estatística completa (frequência, atraso, soma, paridade, consecutivos, repetição), calcula a PROBABILIDADE EXATA por combinatória e GERA combinações de dezenas segundo a estratégia pedida. Use quando o operador pedir para "analisar os últimos X sorteios", "gerar combinações", "números quentes", "estatística da Mega-Sena", "quais números têm mais chance", "monta 5 jogos pra mim", ou citar Fibonacci/numerologia/probabilidade aplicados a loteria. IMPORTANTE: o relatório traz uma DECLARAÇÃO OBRIGATÓRIA sobre independência dos sorteios — repasse-a ao operador SEM SUAVIZAR, porque é matematicamente verdadeira e o protege de ilusão. Jogos: Mega-Sena, Quina, Lotofácil, Lotomania, Dupla Sena, Dia de Sorte, Timemania, +Milionária, Super Sete.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        game:      { type: 'string', description: 'Jogo (ex.: "mega-sena", "quina", "lotofácil"). Aceita variações faladas.' },
+        draws:     { type: 'integer', description: 'Quantos concursos retroativos analisar (1 a 200; padrão 20). O operador costuma dizer "os 5 últimos", "os últimos 50".' },
+        strategy:  { type: 'string', description: 'equilibrado (padrão — segue o perfil estatístico dos sorteios reais) | antipopular (evita datas 1-31 e sequências: NÃO aumenta a chance, mas reduz o rateio se ganhar) | quentes | frios | atrasados | fibonacci | primos | numerologia | aleatorio' },
+        count:     { type: 'integer', description: 'Quantas combinações gerar (1 a 20; padrão 5).' },
+        numbers:   { type: 'integer', description: 'Dezenas por jogo (padrão: aposta mínima do jogo). Mais dezenas = mais caro.' },
+        fixed:     { type: 'array', items: { type: 'integer' }, description: 'Dezenas que devem aparecer em TODOS os jogos.' },
+        exclude:   { type: 'array', items: { type: 'integer' }, description: 'Dezenas a nunca usar.' },
+      },
+      required: ['game'],
     },
   },
   {
@@ -2666,6 +2684,36 @@ async function execTool(tu, send) {
           return result(`O painel de ${nome} é um quadrante FIXO da interface e fica sempre visível, Senhor — não há o que fechar. Diga isso com naturalidade.`);
         return result(`Fechei ${nome}. Confirme ao operador de forma breve e natural (ex.: "Pronto, Senhor.").`);
       }
+      case 'lottery_simulate': {
+        const jogo = canonLoteria(tu.input.game);
+        if (!jogo) return result(`Não reconheci a loteria "${tu.input.game}". Jogos com simulador: Mega-Sena, Quina, Lotofácil, Lotomania, Dupla Sena, Dia de Sorte, Timemania, +Milionária e Super Sete.`, true);
+        const n = Math.max(1, Math.min(parseInt(tu.input.draws, 10) || 20, 200));
+        send({ tool: { name: 'lottery_simulate', label: `Analisando ${n} concursos de ${LOTERIAS[jogo]?.nome || jogo}` } });
+        try {
+          const LOT = await import('./loteria.mjs');
+          if (!LOT.REGRAS[jogo]) return result(`O simulador ainda não cobre ${LOTERIAS[jogo]?.nome || jogo} (Federal e Loteca não têm dezenas). Use lottery_result para o resultado.`, true);
+          const hist  = await LOT.historico(jogo, n);
+          const stats = LOT.estatisticas(jogo, hist);
+          const prob  = LOT.probabilidade(jogo, tu.input.numbers);
+          const ger   = LOT.gerar(jogo, {
+            estrategia: (tu.input.strategy || 'equilibrado').toLowerCase(),
+            quantidade: Math.max(1, Math.min(parseInt(tu.input.count, 10) || 5, 20)),
+            dezenas: tu.input.numbers, stats,
+            fixos: Array.isArray(tu.input.fixed) ? tu.input.fixed.map(Number) : [],
+            excluir: Array.isArray(tu.input.exclude) ? tu.input.exclude.map(Number) : [],
+            semente: (hist[0]?.concurso || 1) * 7919,   // reprodutível por concurso
+          });
+          send({ ui: { type: 'lottery_sim', payload: { jogo, nome: ger.nome, stats: {
+            quentes: stats.quentes, frios: stats.frios, atrasadas: stats.atrasadas,
+            soma: stats.soma, concursos: stats.concursos, periodo: stats.periodo },
+            jogos: ger.jogos, estrategia: ger.estrategia, prob } } });
+          return result(LOT.relatorio({ jogo, stats, ger, prob }) +
+            `\n\nNarre em fala natural, como um matemático explicando a um colega: primeiro o que o histórico MOSTRA, depois a probabilidade REAL, depois as combinações. ` +
+            `A DECLARAÇÃO OBRIGATÓRIA acima é inegociável — diga-a com suas palavras, sem suavizar e sem transformar em rodapé. ` +
+            `Se o operador pediu "números quentes" ou Fibonacci/numerologia, entregue o que ele pediu E explique com franqueza que o critério é de escolha, não de vantagem. ` +
+            `Se ele quiser vantagem REAL, recomende a estratégia "antipopular" e explique o porquê: mesma chance de ganhar, menor chance de dividir.`);
+        } catch (e) { return result('Falha no simulador: ' + e.message, true); }
+      }
       case 'lottery_result': {
         const jogo = canonLoteria(tu.input.game);
         if (!jogo) return result(`Não reconheci a loteria "${tu.input.game}". Jogos disponíveis: Mega-Sena, Lotofácil, Quina, Lotomania, Timemania, Dupla Sena, Dia de Sorte, Super Sete, +Milionária, Federal e Loteca.`, true);
@@ -3041,7 +3089,7 @@ REGRA CRÍTICA: quando o operador perguntar "quais compromissos tenho?", "tenho 
 }
 
 // ferramentas expostas no modo LIVE (formato Realtime: function calling via data channel)
-const LIVE_TOOL_NAMES = ['agenda_add', 'agenda_update', 'agenda_remove', 'agenda_list', 'memory_save', 'get_weather', 'get_ai_news', 'investigate_news', 'open_website', 'analyze_camera', 'switch_camera', 'enroll_face', 'get_emails', 'read_email', 'read_document', 'wa_list_chats', 'wa_read_chat', 'wa_send_message', 'wa_allow', 'wa_auto_reply', 'wa_find_contact', 'council_review', 'analyze_market', 'portfolio_add', 'portfolio_remove', 'portfolio_view', 'ia_sem_medo', 'open_screen', 'close_screen', 'lottery_result', 'cyber_scan', 'youtube_watch', 'monitor_play', 'enroll_voice', 'identify_voice', 'deep_investigate', 'watch_add', 'watch_check', 'watch_manage'];
+const LIVE_TOOL_NAMES = ['agenda_add', 'agenda_update', 'agenda_remove', 'agenda_list', 'memory_save', 'get_weather', 'get_ai_news', 'investigate_news', 'open_website', 'analyze_camera', 'switch_camera', 'enroll_face', 'get_emails', 'read_email', 'read_document', 'wa_list_chats', 'wa_read_chat', 'wa_send_message', 'wa_allow', 'wa_auto_reply', 'wa_find_contact', 'council_review', 'analyze_market', 'portfolio_add', 'portfolio_remove', 'portfolio_view', 'ia_sem_medo', 'open_screen', 'close_screen', 'lottery_result', 'lottery_simulate', 'cyber_scan', 'youtube_watch', 'monitor_play', 'enroll_voice', 'identify_voice', 'deep_investigate', 'watch_add', 'watch_check', 'watch_manage'];
 const LIVE_TOOLS = TOOLS
   .filter(t => LIVE_TOOL_NAMES.includes(t.name))
   .map(t => ({ type: 'function', name: t.name, description: t.description, parameters: t.input_schema }));
@@ -3411,6 +3459,33 @@ const server = http.createServer(async (req, res) => {
         watchWrite(w);
         return json(res, 200, { ok: antes !== w.alvos.length, total: w.alvos.length, termos: w.alvos.map(a => a.termo) });
       }
+    }
+
+    /* simulador de loteria — usado pelo modo AO VIVO, onde quem executa é o navegador */
+    if (req.method === 'GET' && url.pathname === '/api/lottery-sim') {
+      const jogo = canonLoteria(url.searchParams.get('game') || '');
+      if (!jogo) return json(res, 400, { error: 'jogo não reconhecido' });
+      try {
+        const LOT = await import('./loteria.mjs');
+        if (!LOT.REGRAS[jogo]) return json(res, 400, { error: `o simulador não cobre ${jogo}` });
+        const n = Math.max(1, Math.min(parseInt(url.searchParams.get('draws'), 10) || 20, 200));
+        const dz = parseInt(url.searchParams.get('numbers'), 10) || null;
+        const hist = await LOT.historico(jogo, n);
+        const stats = LOT.estatisticas(jogo, hist);
+        const prob = LOT.probabilidade(jogo, dz);
+        const ger = LOT.gerar(jogo, {
+          estrategia: (url.searchParams.get('strategy') || 'equilibrado').toLowerCase(),
+          quantidade: Math.max(1, Math.min(parseInt(url.searchParams.get('count'), 10) || 5, 20)),
+          dezenas: dz, stats,
+          fixos:   (url.searchParams.get('fixed')   || '').split(',').filter(Boolean).map(Number),
+          excluir: (url.searchParams.get('exclude') || '').split(',').filter(Boolean).map(Number),
+          semente: (hist[0]?.concurso || 1) * 7919,
+        });
+        return json(res, 200, { relatorio: LOT.relatorio({ jogo, stats, ger, prob }),
+          jogo, nome: ger.nome, estrategia: ger.estrategia, jogos: ger.jogos, prob,
+          stats: { quentes: stats.quentes, frios: stats.frios, atrasadas: stats.atrasadas,
+                   soma: stats.soma, concursos: stats.concursos, periodo: stats.periodo } });
+      } catch (e) { return json(res, 500, { error: e.message }); }
     }
 
     if (req.method === 'GET' && url.pathname === '/api/deep-investigate') {

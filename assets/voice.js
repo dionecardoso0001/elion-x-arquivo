@@ -689,6 +689,20 @@
           return `${r.total} temas sob vigilância: ${r.alvos.map(x => x.termo).join(', ')}. ` +
             `${r.pendentes ? r.pendentes + ' novidade(s) pendente(s).' : 'Sem novidades pendentes.'} Última varredura: ${r.ultimaVarredura || 'ainda não rodou'}.`;
         }
+        case 'lottery_simulate': {
+          const q = new URLSearchParams({ game: a.game || '' });
+          if (a.draws)    q.set('draws', a.draws);
+          if (a.strategy) q.set('strategy', a.strategy);
+          if (a.count)    q.set('count', a.count);
+          if (a.numbers)  q.set('numbers', a.numbers);
+          if (Array.isArray(a.fixed)   && a.fixed.length)   q.set('fixed', a.fixed.join(','));
+          if (Array.isArray(a.exclude) && a.exclude.length) q.set('exclude', a.exclude.join(','));
+          const r = await fetch('/api/lottery-sim?' + q).then(x => x.json());
+          if (r.error) return 'ERRO: ' + r.error;
+          ELX.lotterySim?.render?.(r);
+          return r.relatorio +
+            '\n\nNarre como um matemático honesto explicando a um colega. A DECLARAÇÃO OBRIGATÓRIA é inegociável — diga-a com suas palavras, sem suavizar. Se ele quiser vantagem REAL, recomende a estratégia "antipopular" e explique: mesma chance de ganhar, menor chance de dividir.';
+        }
         case 'deep_investigate': {
           const q = String(a.termo || a.query || '').trim();
           if (!q) return 'ERRO: informe o que devo investigar.';
