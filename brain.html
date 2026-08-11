@@ -18,7 +18,8 @@
      Com devicePixelRatio > 1 (tela 125%/150%, comum em notebook Windows) o
      buffer fica maior que a janela e o canvas transborda: só o canto superior
      esquerdo aparece e o resto da cena — Sol incluído — some da tela. */
-  canvas#graph{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;opacity:0;transition:opacity 1.1s ease}
+  canvas#cosmos{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;pointer-events:none}
+  canvas#graph{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:1;background:transparent;touch-action:none;opacity:0;transition:opacity 1.1s ease}
   canvas#graph.on{opacity:1}
   /* ── TOP BAR ── */
   #top{position:fixed;top:0;left:0;right:0;height:58px;display:flex;align-items:center;gap:14px;
@@ -83,6 +84,7 @@
     #detail{width:min(88vw,340px)}}
 </style></head>
 <body>
+<canvas id="cosmos"></canvas>
 <canvas id="graph"></canvas>
 
 <div id="top">
@@ -116,6 +118,8 @@
 <div id="hint">arraste p/ mover · roda p/ zoom · clique num nó = voar + detalhes · duplo-clique num nó = soltar · ESC fecha</div>
 <div id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="/assets/cosmos.js" defer></script>
 <script>
 /* ════════════════ SEGUNDO CÉREBRO — motor de grafo neural (zero deps) ════════════════ */
 const GROUPS = {
@@ -204,235 +208,334 @@ function drawConstellations(t){
   ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
 }
 /* ═══════════════════════════════════════════════════════════════════════════
-   SISTEMA SOLAR — planetas procedurais em torno da malha neural
+   SISTEMA SOLAR — corpos com ROTAÇÃO REAL
 
-   Nada de imagem externa: cada corpo é PINTADO uma única vez num canvas
-   offscreen (textura + sombreamento esférico + terminador + atmosfera) e
-   depois só é estampado a cada quadro. Redesenhar a textura 60 vezes por
-   segundo mataria o desempenho do grafo, que é o que importa nesta tela.
+   A diferença entre um círculo com degradê e um planeta é a PROJEÇÃO. Aqui
+   cada corpo tem uma textura equirretangular (mapa 2:1, como um planisfério)
+   que é reprojetada na esfera a cada quadro em fatias verticais. Como fatias
+   iguais na tela correspondem a arcos DESIGUAIS de longitude (relação arco-
+   seno), a textura comprime sozinha na borda — é o que dá a leitura de volume
+   e permite girar de verdade, não fingir com um degradê deslizando.
+
+   A textura é pintada UMA vez. Só a reprojeção roda a 60 fps.
    ═══════════════════════════════════════════════════════════════════════════ */
 let SOL=null, LUA=null, PLANETAS=[], solPos={x:0,y:0,r:0};
 
-/* ruído procedural leve — manchas suaves para dar superfície ao corpo */
-function manchas(g, R, n, cores, opac, tam){
-  for(let i=0;i<n;i++){
-    const a=Math.random()*Math.PI*2, d=Math.random()*R*0.94;
-    const x=R+Math.cos(a)*d, y=R+Math.sin(a)*d;
-    const rr=R*(tam[0]+Math.random()*(tam[1]-tam[0]));
-    const c=cores[(Math.random()*cores.length)|0];
-    const rg=g.createRadialGradient(x,y,0,x,y,rr);
-    rg.addColorStop(0,`rgba(${c},${opac})`); rg.addColorStop(1,`rgba(${c},0)`);
-    g.fillStyle=rg; g.beginPath(); g.arc(x,y,rr,0,7); g.fill();
-  }
+/* ── ruído de valor com oitavas: base de toda textura orgânica ── */
+function ruidoBase(w,h,semente){
+  let s=semente>>>0||1; const rnd=()=>{ s^=s<<13; s^=s>>>17; s^=s<<5; return (s>>>0)/4294967296; };
+  const g=new Float32Array(w*h); for(let i=0;i<g.length;i++) g[i]=rnd();
+  /* O ruído tem de REPETIR nos DOIS eixos. Travar o y (clamp) fazia toda
+     oitava fina cair na última linha da grade e ficar constante na vertical —
+     resultado: listras verticais gritantes na textura. */
+  return { g,w,h, at(x,y){
+    x=((x%w)+w)%w; y=((y%h)+h)%h;
+    const x0=x|0, y0=y|0, fx=x-x0, fy=y-y0, x1=(x0+1)%w, y1=(y0+1)%h;
+    const a=this.g[y0*w+x0], b=this.g[y0*w+x1], c=this.g[y1*w+x0], d=this.g[y1*w+x1];
+    const u=fx*fx*(3-2*fx), v=fy*fy*(3-2*fy);
+    return (a*(1-u)+b*u)*(1-v)+(c*(1-u)+d*u)*v;
+  }};
 }
-/* faixas horizontais — gigantes gasosos */
-function faixas(g, R, lista){
-  for(const [y0,y1,c,a] of lista){
-    g.globalAlpha=a; g.fillStyle=c;
-    g.beginPath(); g.ellipse(R, R+(y0+y1)/2*R, R*Math.sqrt(Math.max(0,1-((y0+y1)/2)**2)), R*Math.abs(y1-y0)/2, 0,0,7); g.fill();
-  }
-  g.globalAlpha=1;
-}
-/* crateras — Lua e Mercúrio */
-function crateras(g,R,n){
-  for(let i=0;i<n;i++){
-    const a=Math.random()*Math.PI*2, d=Math.random()*R*0.9;
-    const x=R+Math.cos(a)*d, y=R+Math.sin(a)*d, rr=R*(0.02+Math.random()*0.085);
-    g.fillStyle='rgba(0,0,0,0.20)'; g.beginPath(); g.arc(x,y,rr,0,7); g.fill();
-    g.fillStyle='rgba(255,255,255,0.13)'; g.beginPath(); g.arc(x-rr*0.18,y-rr*0.18,rr*0.78,0,7); g.fill();
-  }
-}
+function fbm(campos,x,y,oit){ let v=0,a=0.5,f=1;
+  for(let o=0;o<oit;o++){ v+=campos[o%campos.length].at(x*f,y*f)*a; a*=0.5; f*=2; } return v; }
 
-/* pinta um corpo celeste num canvas de lado 2R (+ margem para brilho/anéis) */
-function pintaCorpo(tipo, R){
-  const M = tipo==='saturno' ? R*2.4 : R*1.35;         // margem: anéis pedem mais
-  const c=document.createElement('canvas'); c.width=c.height=Math.ceil(M*2);
-  const g=c.getContext('2d'); const O=M;                 // centro
-  g.save(); g.translate(O-R,O-R);                        // origem no canto da esfera
+/* ═══ AMOSTRAGEM QUE FECHA O CICLO ═══
+   A textura é um planisfério: a borda direita encosta na esquerda. Para a
+   emenda sumir, o ruído tem de dar volta INTEIRA no eixo x — ou seja, ao
+   percorrer a largura toda, a coordenada precisa avançar um número INTEIRO de
+   células da grade. Multiplicador fracionário (u*0.11) deixava a costura
+   visível como um risco vertical no meio da esfera.
+   un e vn são normalizados (0..1) e as frequências, inteiras.               */
+/* Não basta a frequência ser inteira: ela tem de ser MÚLTIPLA da grade, senão
+   a volta não cai no ponto de partida. A solução é dar a cada oitava a SUA
+   grade e amostrá-la sempre no tamanho natural — assim un=1 recai exatamente
+   em un=0, qualquer que seja a oitava. */
+function ruidoOitavas(semente){
+  return [4,8,16,32,64].map((w,i)=>ruidoBase(w, Math.max(2,w>>1), semente*(i*7+13)+i*31+1));
+}
+function oitava(N,k,un,vn){ const g=N[Math.min(k,N.length-1)]; return g.at(un*g.w, vn*g.h); }
+/* soma normalizada das oitavas de..até — devolve 0..1 */
+function fbmO(N,un,vn,de,ate){
+  let v=0,a=0.5,s=0;
+  for(let k=de;k<=ate&&k<N.length;k++){ v+=oitava(N,k,un,vn)*a; s+=a; a*=0.5; }
+  return s? v/s : 0.5;
+}
+const mix=(a,b,t)=>a+(b-a)*t;
+const lerpCor=(c1,c2,t)=>[mix(c1[0],c2[0],t)|0, mix(c1[1],c2[1],t)|0, mix(c1[2],c2[2],t)|0];
 
-  // anéis de Saturno ATRÁS do corpo
-  if(tipo==='saturno'){
-    g.save(); g.translate(R,R); g.rotate(-0.42); g.scale(1,0.29);
-    for(const [r0,r1,cor,al] of [[1.35,1.52,'#d9c9a6',0.55],[1.56,1.72,'#c9b58e',0.42],[1.76,1.95,'#e5d9bd',0.30],[2.0,2.12,'#b8a884',0.18]]){
-      g.globalAlpha=al; g.strokeStyle=cor; g.lineWidth=R*(r1-r0);
-      g.beginPath(); g.arc(0,0,R*(r0+r1)/2,Math.PI,Math.PI*2); g.stroke();
+/* ── textura equirretangular (planisfério 2:1), duplicada na horizontal para
+      a costura da rotação nunca precisar de dois desenhos ── */
+function texturaEquir(tipo, TW){
+  const TH=TW>>1;
+  const c=document.createElement('canvas'); c.width=TW*2; c.height=TH;
+  const g=c.getContext('2d');
+  const img=g.createImageData(TW,TH), D=img.data;
+  const semente={mercurio:11,venus:23,terra:37,marte:53,jupiter:71,saturno:89,
+                 urano:101,netuno:113,plutao:131,lua:149,sol:167}[tipo]||7;
+  const N=ruidoOitavas(semente);
+
+  for(let y=0;y<TH;y++){
+    const lat=(y/TH)*2-1;                    // -1 polo sul · +1 polo norte
+    for(let x=0;x<TW;x++){
+      const un=x/TW, vn=y/TH;
+      let r,gr,b,al=255;
+      const n=fbmO(N,un,vn,1,3), n2=fbmO(N,un+0.17,vn+0.11,3,4);
+
+      if(tipo==='terra'){
+        /* CONTINENTE precisa de ruído de BAIXA frequência. Com frequência alta
+           o limiar recorta pontilhado, não massa de terra — foi o que estragou
+           a primeira versão. Duas oitavas largas dão a forma; uma terceira,
+           fraca, só recorta a costa. */
+        /* pesos MUITO desiguais: a oitava larga manda na forma do continente e
+           as finas só rendilham a costa. Pesos parecidos picotavam a massa de
+           terra em arquipélago. */
+        const forma=oitava(N,1,un,vn)*0.68 + oitava(N,2,un+0.11,vn+0.07)*0.24 + oitava(N,3,un+0.31,vn+0.19)*0.08;
+        const cont=forma + (0.10 - Math.abs(lat)*0.14);   // um pouco mais de terra no equador
+        const gelo=Math.abs(lat)>0.83 ? (Math.abs(lat)-0.83)/0.17 : 0;
+        if(cont>0.50){
+          const alt=Math.min(1,(cont-0.50)/0.26);
+          const selva=[38,96,48], campo=[92,124,58], deserto=[176,148,92], serra=[122,110,96];
+          let c1=lerpCor(selva,campo, Math.min(1,Math.abs(lat)*1.6));
+          c1=lerpCor(c1,deserto, Math.max(0,Math.min(1,(Math.abs(lat)-0.18)*2.4)));
+          c1=lerpCor(c1,serra, Math.pow(alt,1.6));
+          [r,gr,b]=c1;
+        } else {
+          const prof=Math.min(1,(0.50-cont)/0.34);        // plataforma → abissal
+          [r,gr,b]=lerpCor([40,132,190],[4,20,66], Math.pow(prof,0.75));
+        }
+        if(gelo>0) [r,gr,b]=lerpCor([r,gr,b],[238,248,255], Math.min(1,gelo*1.5));
+        // nuvens: véu fino e esgarçado, nunca placas — limiar alto e transição longa
+        const nuv=oitava(N,2,un+0.41,vn+0.17)*0.6 + oitava(N,3,un+0.05,vn+0.29)*0.4;
+        const faixaNuv=0.5+0.5*Math.sin(lat*4.4);          // cinturões equatoriais
+        const densi=nuv*0.80+faixaNuv*0.20;
+        if(densi>0.62) [r,gr,b]=lerpCor([r,gr,b],[250,253,255], Math.min(0.80,(densi-0.62)*2.1));
+      }
+      else if(tipo==='marte'){
+        // regiões de albedo largas (Syrtis, Hellas) + poeira fina por cima
+        const largo=oitava(N,1,un,vn)*0.68 + oitava(N,2,un+0.05,vn+0.02)*0.32;
+        const poeira=oitava(N,4,un+0.23,vn+0.09);
+        let base=lerpCor([206,118,72],[146,68,40], largo);
+        if(largo>0.60) base=lerpCor(base,[96,54,42], Math.min(1,(largo-0.60)*2.6));  // terreno escuro
+        if(largo<0.32) base=lerpCor(base,[224,158,108], Math.min(1,(0.32-largo)*2.8)); // planície clara
+        [r,gr,b]=lerpCor(base,[188,104,62],(poeira-0.5)*0.5);
+        if(Math.abs(lat)>0.85){ const t=(Math.abs(lat)-0.85)/0.15; [r,gr,b]=lerpCor([r,gr,b],[246,244,240],Math.min(1,t*1.7)); }
+      }
+      else if(tipo==='jupiter'||tipo==='saturno'){
+        // faixas: latitude dominante + turbulência que ondula a fronteira
+        const nb=tipo==='jupiter'?9:7;
+        const onda=fbmO(N,un,vn,1,3)*0.16;
+        const fase=(lat+onda)*nb;
+        const t=0.5+0.5*Math.sin(fase*Math.PI);
+        const claro= tipo==='jupiter'?[236,214,178]:[238,224,186];
+        const escuro=tipo==='jupiter'?[164,104,62]:[196,166,116];
+        [r,gr,b]=lerpCor(escuro,claro,t);
+        const turb=fbmO(N,un+0.17,vn+0.03,2,4);           // vórtices dentro da faixa
+        [r,gr,b]=lerpCor([r,gr,b], t>0.5?claro:escuro, (turb-0.5)*0.5);
+        if(tipo==='jupiter'){                            // Grande Mancha Vermelha
+          const dx=(un-0.30)*2.2, dy=(lat+0.30)*3.4, d=dx*dx+dy*dy;
+          if(d<1){ const t2=Math.pow(1-d,0.7); [r,gr,b]=lerpCor([r,gr,b],[188,84,58],t2*0.92); }
+        }
+      }
+      else if(tipo==='urano'||tipo==='netuno'){
+        const claro= tipo==='urano'?[196,238,240]:[92,140,232];
+        const escuro=tipo==='urano'?[142,206,214]:[38,72,166];
+        const faixa=0.5+0.5*Math.sin((lat+fbmO(N,un,vn,1,3)*0.1)*(tipo==='urano'?4:6)*Math.PI);
+        [r,gr,b]=lerpCor(escuro,claro,faixa*0.55+n*0.45);
+        if(tipo==='netuno'){                             // Grande Mancha Escura
+          const dx=(un-0.62)*2.6, dy=(lat-0.22)*4.2, d=dx*dx+dy*dy;
+          if(d<1) [r,gr,b]=lerpCor([r,gr,b],[18,38,110],Math.pow(1-d,0.8)*0.75);
+        }
+      }
+      else if(tipo==='venus'){
+        const nuv=fbmO(N,un,vn,1,4);                 // véu de ácido, redemoinhos
+        [r,gr,b]=lerpCor([214,170,104],[248,232,190],nuv);
+        const faixa=0.5+0.5*Math.sin((lat*3+nuv*2.2)*Math.PI);
+        [r,gr,b]=lerpCor([r,gr,b],[236,206,148],faixa*0.35);
+      }
+      else {  // mercurio · lua · plutao — regolito e crateras
+        const cinza= tipo==='lua'?[188,186,182]:(tipo==='plutao'?[196,172,146]:[152,146,140]);
+        const mar=   tipo==='lua'?[104,104,110]:(tipo==='plutao'?[128,102,84]:[96,92,90]);
+        const m=fbmO(N,un,vn,1,3);
+        [r,gr,b]=m>0.58? lerpCor(cinza,mar,Math.min(1,(m-0.58)*2.6)) : cinza;
+        const cr=fbmO(N,un+0.09,vn+0.03,3,4);               // campo de crateras
+        const k=(cr-0.5)*0.55; r=Math.max(0,Math.min(255,r+k*90)); gr=Math.max(0,Math.min(255,gr+k*90)); b=Math.max(0,Math.min(255,b+k*90));
+      }
+      // granulação fina: tira o aspecto de degradê liso
+      const gran=(n2-0.5)*(tipo==='terra'?10:16);
+      r=Math.max(0,Math.min(255,r+gran)); gr=Math.max(0,Math.min(255,gr+gran)); b=Math.max(0,Math.min(255,b+gran));
+      const i=(y*TW+x)*4; D[i]=r; D[i+1]=gr; D[i+2]=b; D[i+3]=al;
     }
-    g.restore(); g.globalAlpha=1;
   }
+  g.putImageData(img,0,0); g.putImageData(img,TW,0);      // cópia lado a lado
+  return { c, TW, TH };
+}
 
-  // recorta tudo à esfera
-  g.save(); g.beginPath(); g.arc(R,R,R,0,7); g.clip();
-
-  const base = {
-    mercurio:['#8c8279','#6b625a'], venus:['#f0d9a8','#c9a86b'], terra:['#1b6fc4','#0a3c78'],
-    marte:['#c9663a','#8a3e22'], jupiter:['#e0c9a6','#b08d63'], saturno:['#e8d8ae','#bfa176'],
-    urano:['#a8e6e8','#5fa8b8'], netuno:['#3d6fd8','#1e3f8c'], plutao:['#c9b8a6','#8a7a68'],
-    lua:['#d8d4cc','#9a958c'],
-  }[tipo] || ['#888','#444'];
-
-  const rg=g.createRadialGradient(R*0.62,R*0.55,R*0.06, R,R,R*1.05);
-  rg.addColorStop(0,base[0]); rg.addColorStop(0.62,base[0]); rg.addColorStop(1,base[1]);
-  g.fillStyle=rg; g.fillRect(0,0,R*2,R*2);
-
-  if(tipo==='terra'){
-    // oceano + continentes desenhados à mão, em blocos reconhecíveis
-    g.fillStyle='#0d5a9e'; g.fillRect(0,0,R*2,R*2);
-    const cont=(pts,cor)=>{ g.fillStyle=cor; g.beginPath();
-      pts.forEach((p,i)=>{ const x=R+p[0]*R, y=R+p[1]*R; i?g.lineTo(x,y):g.moveTo(x,y); }); g.closePath(); g.fill(); };
-    const V='#2e7d32', V2='#3f9142', D='#b8a05c';
-    cont([[-.72,-.42],[-.44,-.55],[-.18,-.36],[-.26,-.10],[-.46,.04],[-.62,-.14]],V);      // América do Norte
-    cont([[-.30,.14],[-.12,.10],[-.06,.40],[-.20,.68],[-.34,.46]],V2);                     // América do Sul
-    cont([[.02,-.44],[.30,-.50],[.44,-.28],[.26,-.16],[.06,-.20]],D);                      // Europa/Norte da África
-    cont([[.06,-.16],[.34,-.20],[.42,.14],[.26,.52],[.10,.30]],V);                         // África
-    cont([[.36,-.52],[.78,-.44],[.86,-.10],[.56,-.06],[.38,-.24]],D);                      // Ásia
-    cont([[.58,.30],[.82,.26],[.84,.48],[.62,.50]],'#a67c3f');                             // Oceania
-    cont([[-.9,.80],[.9,.80],[.9,1.0],[-.9,1.0]],'#eef6ff');                               // Antártida
-    manchas(g,R,26,['255,255,255'],0.16,[0.10,0.26]);                                      // nuvens
-    manchas(g,R,10,['255,255,255'],0.10,[0.22,0.42]);
+/* ── reprojeta a textura na esfera, girada e iluminada ── */
+function esfera(tex, cx, cy, R, rot, luzX, luzY){
+  const N=Math.max(28, Math.min(150, Math.round(R*1.5)));
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.clip();
+  const passo=tex.TW/ (2*Math.PI);                        // px de textura por radiano
+  for(let i=0;i<N;i++){
+    // fatias iguais na TELA → arcos desiguais de longitude: é daí que vem o volume
+    const s0=-1+2*i/N, s1=-1+2*(i+1)/N;
+    const l0=Math.asin(Math.max(-1,Math.min(1,s0))), l1=Math.asin(Math.max(-1,Math.min(1,s1)));
+    const u0=(rot+ (l0+Math.PI/2)/(2*Math.PI))*tex.TW, larg=Math.max(0.6,(l1-l0)*passo);
+    const sx=((u0%tex.TW)+tex.TW)%tex.TW;
+    ctx.drawImage(tex.c, sx,0, larg,tex.TH, cx+s0*R, cy-R, (s1-s0)*R+0.6, 2*R);
   }
-  else if(tipo==='venus') manchas(g,R,40,['255,240,200','220,190,140'],0.20,[0.10,0.30]);
-  else if(tipo==='marte'){ manchas(g,R,30,['200,110,70','120,60,35'],0.22,[0.08,0.24]);
-    g.fillStyle='rgba(255,255,255,0.55)'; g.beginPath(); g.ellipse(R,R*0.14,R*0.34,R*0.13,0,0,7); g.fill(); }
-  else if(tipo==='jupiter'){
-    faixas(g,R,[[-.75,-.5,'#c9a479',.55],[-.45,-.2,'#f0e0c4',.45],[-.15,.1,'#b8895c',.5],[.15,.4,'#eddfc2',.4],[.45,.72,'#c2a077',.5]]);
-    g.fillStyle='rgba(190,90,60,0.75)'; g.beginPath(); g.ellipse(R*1.36,R*1.18,R*0.24,R*0.14,0,0,7); g.fill();  // Grande Mancha
-  }
-  else if(tipo==='saturno') faixas(g,R,[[-.7,-.4,'#e8d5a8',.5],[-.35,-.05,'#f5e9c8',.4],[.0,.3,'#d8c294',.45],[.35,.65,'#eaddb4',.35]]);
-  else if(tipo==='urano') manchas(g,R,14,['200,250,255','140,210,225'],0.16,[0.16,0.40]);
-  else if(tipo==='netuno'){ manchas(g,R,18,['110,160,255','30,60,150'],0.24,[0.12,0.34]);
-    g.fillStyle='rgba(20,40,110,0.6)'; g.beginPath(); g.ellipse(R*0.72,R*1.2,R*0.20,R*0.11,0,0,7); g.fill(); }
-  else if(tipo==='mercurio'||tipo==='lua'||tipo==='plutao') crateras(g,R,tipo==='lua'?46:30);
+  // ILUMINAÇÃO: terminador orientado ao Sol + escurecimento de limbo
+  const d=Math.hypot(luzX,luzY)||1, ux=luzX/d, uy=luzY/d;
+  const sg=ctx.createRadialGradient(cx+ux*R*0.42, cy+uy*R*0.42, R*0.10, cx-ux*R*0.30, cy-uy*R*0.30, R*1.42);
+  sg.addColorStop(0,'rgba(255,250,235,0.20)'); sg.addColorStop(0.30,'rgba(0,0,0,0)');
+  sg.addColorStop(0.52,'rgba(0,0,0,0.52)'); sg.addColorStop(0.74,'rgba(0,0,0,0.86)'); sg.addColorStop(1,'rgba(0,0,0,0.97)');
+  ctx.fillStyle=sg; ctx.fillRect(cx-R,cy-R,R*2,R*2);
+  // limbo: fina perda de luz na borda inteira, dá a curvatura
+  const lb=ctx.createRadialGradient(cx,cy,R*0.80, cx,cy,R);
+  lb.addColorStop(0,'rgba(0,0,0,0)'); lb.addColorStop(1,'rgba(0,0,0,0.30)');
+  ctx.fillStyle=lb; ctx.fillRect(cx-R,cy-R,R*2,R*2);
+  ctx.restore();
+}
 
-  // TERMINADOR — a sombra que dá volume; a luz vem do canto superior esquerdo
-  const sh=g.createRadialGradient(R*0.55,R*0.45,R*0.1, R*0.95,R*1.0,R*1.5);
-  sh.addColorStop(0,'rgba(0,0,0,0)'); sh.addColorStop(0.52,'rgba(0,0,0,0.16)');
-  sh.addColorStop(0.8,'rgba(0,0,0,0.62)'); sh.addColorStop(1,'rgba(0,0,0,0.9)');
-  g.fillStyle=sh; g.fillRect(0,0,R*2,R*2);
-  // realce especular do lado iluminado
-  const sp=g.createRadialGradient(R*0.55,R*0.42,0, R*0.55,R*0.42,R*0.85);
-  sp.addColorStop(0,'rgba(255,255,255,0.22)'); sp.addColorStop(1,'rgba(255,255,255,0)');
-  g.fillStyle=sp; g.fillRect(0,0,R*2,R*2);
-  g.restore();                                    // fim do recorte esférico
-
-  // ATMOSFERA — halo externo em quem tem
-  const atm={terra:'120,190,255',venus:'255,225,160',urano:'150,240,250',netuno:'90,140,255',marte:'220,140,100'}[tipo];
-  if(atm){
-    const ag=g.createRadialGradient(R,R,R*0.93, R,R,R*1.22);
-    ag.addColorStop(0,`rgba(${atm},0.55)`); ag.addColorStop(0.5,`rgba(${atm},0.18)`); ag.addColorStop(1,`rgba(${atm},0)`);
-    g.fillStyle=ag; g.beginPath(); g.arc(R,R,R*1.22,0,7); g.fill();
+/* ── Sol: granulação viva, manchas e proeminências ── */
+function texturaSol(TW){
+  const TH=TW>>1, c=document.createElement('canvas'); c.width=TW*2; c.height=TH;
+  const g=c.getContext('2d'), img=g.createImageData(TW,TH), D=img.data;
+  const N=ruidoOitavas(167);
+  for(let y=0;y<TH;y++) for(let x=0;x<TW;x++){
+    const un=x/TW, vn=y/TH;
+    const gr=fbmO(N,un,vn,2,4);                        // grânulos de convecção
+    const ma=fbmO(N,un+0.13,vn+0.07,1,2);                   // manchas
+    let c1=lerpCor([255,206,92],[255,246,214],Math.pow(gr,1.5));
+    c1=lerpCor(c1,[255,138,32],(1-gr)*0.55);
+    if(ma>0.70) c1=lerpCor(c1,[126,44,10],Math.min(1,(ma-0.70)*3.2));
+    const i=(y*TW+x)*4; D[i]=c1[0]; D[i+1]=c1[1]; D[i+2]=c1[2]; D[i+3]=255;
   }
-  // anéis de Saturno À FRENTE (metade de baixo)
-  if(tipo==='saturno'){
-    g.save(); g.translate(R,R); g.rotate(-0.42); g.scale(1,0.29);
-    for(const [r0,r1,cor,al] of [[1.35,1.52,'#d9c9a6',0.65],[1.56,1.72,'#c9b58e',0.5],[1.76,1.95,'#e5d9bd',0.36],[2.0,2.12,'#b8a884',0.22]]){
-      g.globalAlpha=al; g.strokeStyle=cor; g.lineWidth=R*(r1-r0);
-      g.beginPath(); g.arc(0,0,R*(r0+r1)/2,0,Math.PI); g.stroke();
-    }
-    g.restore(); g.globalAlpha=1;
-  }
-  g.restore();
-  return { canvas:c, meio:M, R };
+  g.putImageData(img,0,0); g.putImageData(img,TW,0);
+  return { c, TW, TH };
 }
 
 function makeSistemaSolar(){
   const base=Math.min(W,H);
-  // raios BEM visíveis, como o operador pediu
-  /* Órbitas LARGAS de propósito: o aglomerado de nós ocupa o miolo da tela,
-     então os corpos circulam pela periferia — é onde ficam visíveis sem
-     disputar espaço com o grafo, que é a informação principal. As fases são
-     espaçadas para que nunca se amontoem todos no mesmo lado. */
   const defs=[
-    ['mercurio', 0.034, 0.00, 0.0], ['venus',  0.050, 0.05, 0.7],
-    ['terra',    0.066, 0.11, 1.5], ['marte',  0.044, 0.16, 2.3],
-    ['jupiter',  0.090, 0.22, 3.0], ['saturno',0.080, 0.28, 3.8],
-    ['urano',    0.060, 0.33, 4.6], ['netuno', 0.058, 0.38, 5.3],
-    ['plutao',   0.030, 0.43, 6.0],
+    ['mercurio',0.030,0.00,0.0,  0.30], ['venus',  0.046,0.055,0.8, -0.12],
+    ['terra',   0.052,0.115,1.6,  0.42], ['marte',  0.038,0.170,2.5,  0.36],
+    ['jupiter', 0.086,0.230,3.3,  0.85], ['saturno',0.076,0.295,4.1,  0.72],
+    ['urano',   0.056,0.355,4.9, -0.30], ['netuno', 0.054,0.410,5.6,  0.26],
+    ['plutao',  0.026,0.462,6.1,  0.16],
   ];
-  PLANETAS = defs.map(([tipo,rr,orb,fase])=>{
+  PLANETAS=defs.map(([tipo,rr,orb,fase,giro])=>{
     const R=Math.max(18, base*rr);
-    return { tipo, R, orb: base*(0.46+orb*0.34), fase,
-             vel: 0.012 - orb*0.014,                      // externo gira mais devagar
-             tex: pintaCorpo(tipo, R), incl: 0.52 + Math.random()*0.20 };
+    return { tipo, R, orb: base*(0.40+orb*0.42), fase,
+             vel: 0.0125-orb*0.017, giro,
+             tex: texturaEquir(tipo, tipo==='terra'?512:384),
+             incl: 0.34, rot: Math.random() };
   });
-  SOL = { R: Math.max(46, base*0.085) };
-  LUA = { R: Math.max(30, base*0.055), tex: pintaCorpo('lua', Math.max(30, base*0.055)) };
+  SOL={ R: Math.max(150, base*0.30), tex: texturaSol(512), rot: 0 };
+  LUA={ R: Math.max(26, base*0.040), tex: texturaEquir('lua',256), rot: 0.5 };
 }
 
 function drawSistemaSolar(t){
   if(!PLANETAS.length) return;
-  // SOL fixo no alto à direita — é a fonte de luz da cena inteira
-  const sx=W*0.86, sy=H*0.17, SR=SOL.R;
-  solPos={x:sx,y:sy,r:SR};
-  const pulso=0.94+0.06*Math.sin(t*1.7);
+  const cx=W*0.5, cy=H*0.52;
 
-  ctx.globalCompositeOperation='lighter';
-  // coroa em três camadas
-  for(const [f,a] of [[7.5,0.10],[3.6,0.20],[1.9,0.42]]){
-    const rg=ctx.createRadialGradient(sx,sy,0,sx,sy,SR*f*pulso);
-    rg.addColorStop(0,'rgba(255,246,214,'+a+')'); rg.addColorStop(0.35,'rgba(255,190,90,'+(a*0.55)+')');
-    rg.addColorStop(1,'rgba(255,120,20,0)');
-    ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(sx,sy,SR*f*pulso,0,7); ctx.fill();
+  /* ── ÓRBITAS: elipses finas, o traço que dá leitura de sistema ── */
+  ctx.save(); ctx.strokeStyle='rgba(214,232,255,0.20)'; ctx.lineWidth=1;
+  for(const p of PLANETAS){
+    ctx.beginPath(); ctx.ellipse(cx,cy,p.orb,p.orb*p.incl,0,0,7); ctx.stroke();
   }
-  // raios da coroa
-  ctx.save(); ctx.translate(sx,sy); ctx.rotate(t*0.05);
-  for(let i=0;i<28;i++){ const a=i/28*Math.PI*2, L=SR*(1.5+1.9*Math.abs(Math.sin(i*2.3+t*0.9)));
-    ctx.globalAlpha=0.16; ctx.strokeStyle='#ffe9a8'; ctx.lineWidth=1.6;
-    ctx.beginPath(); ctx.moveTo(Math.cos(a)*SR*1.05,Math.sin(a)*SR*1.05); ctx.lineTo(Math.cos(a)*L,Math.sin(a)*L); ctx.stroke(); }
-  ctx.restore(); ctx.globalAlpha=1;
-  // disco solar
-  const dg=ctx.createRadialGradient(sx-SR*0.2,sy-SR*0.2,SR*0.1, sx,sy,SR);
-  dg.addColorStop(0,'#ffffff'); dg.addColorStop(0.42,'#fff3c4'); dg.addColorStop(0.78,'#ffc247'); dg.addColorStop(1,'#ff8a1e');
-  ctx.fillStyle=dg; ctx.beginPath(); ctx.arc(sx,sy,SR*pulso,0,7); ctx.fill();
+  ctx.restore();
+
+  /* ── SOL enorme na borda esquerda, como na referência ── */
+  const sx=-SOL.R*0.42, sy=H*0.30, SR=SOL.R;
+  solPos={x:sx,y:sy,r:SR};
+  SOL.rot=(SOL.rot+0.00012)%1;
+  ctx.globalCompositeOperation='lighter';
+  for(const [f,a] of [[2.6,0.13],[1.7,0.22],[1.22,0.40]]){       // coroa
+    const rg=ctx.createRadialGradient(sx,sy,SR*0.9,sx,sy,SR*f);
+    rg.addColorStop(0,`rgba(255,150,40,${a})`); rg.addColorStop(0.5,`rgba(255,92,20,${a*0.5})`);
+    rg.addColorStop(1,'rgba(180,30,0,0)');
+    ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(sx,sy,SR*f,0,7); ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';
+  esfera(SOL.tex, sx, sy, SR, SOL.rot, 1, 0);
+  ctx.globalCompositeOperation='lighter';                        // devolve o fogo
+  const fg=ctx.createRadialGradient(sx,sy,SR*0.2,sx,sy,SR);
+  fg.addColorStop(0,'rgba(255,220,120,0.55)'); fg.addColorStop(0.7,'rgba(255,120,30,0.30)');
+  fg.addColorStop(1,'rgba(255,70,10,0.10)');
+  ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(sx,sy,SR,0,7); ctx.fill();
+  const bd=ctx.createRadialGradient(sx,sy,SR*0.92,sx,sy,SR*1.10);  // borda incandescente
+  bd.addColorStop(0,'rgba(255,180,60,0)'); bd.addColorStop(0.45,'rgba(255,150,45,0.55)');
+  bd.addColorStop(1,'rgba(255,90,20,0)');
+  ctx.fillStyle=bd; ctx.beginPath(); ctx.arc(sx,sy,SR*1.10,0,7); ctx.fill();
   ctx.globalCompositeOperation='source-over';
 
-  // ── planetas em órbita elíptica em torno do centro da tela ──
-  const cx=W/2, cy=H/2;
-  const corpos = PLANETAS.map(p=>{
+  /* ── planetas ── */
+  const corpos=PLANETAS.map(p=>{
     const a=t*p.vel+p.fase;
-    const x=cx+Math.cos(a)*p.orb, y=cy+Math.sin(a)*p.orb*p.incl;
-    return { p, x, y, z:Math.sin(a) };                 // z: atrás/à frente do grafo
+    p.rot=(p.rot+p.giro*0.0009)%1; if(p.rot<0)p.rot+=1;
+    return { p, x:cx+Math.cos(a)*p.orb, y:cy+Math.sin(a)*p.orb*p.incl, z:Math.sin(a) };
   }).sort((A,B)=>A.z-B.z);
 
   for(const c of corpos){
-    const { p } = c, T=p.tex;
-    // brilho conforme a proximidade do Sol — quem passa perto é ofuscado
-    const d=Math.hypot(c.x-sx,c.y-sy), perto=Math.max(0, 1-d/(W*0.42));
-    ctx.globalAlpha = 0.80 + 0.20*Math.max(0,c.z);     // presentes na cena, não fantasmas
-    ctx.drawImage(T.canvas, c.x-T.meio, c.y-T.meio);
-    if(perto>0.02){
+    const { p }=c, R=p.R;
+    const lx=sx-c.x, ly=sy-c.y;                                   // direção do Sol
+
+    if(p.tipo==='saturno'){                                       // anéis atrás
+      ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(-0.38); ctx.scale(1,0.26);
+      for(const [r0,r1,cor,al] of [[1.28,1.46,'#cbb894',0.5],[1.50,1.68,'#e6d8b4',0.42],[1.72,1.92,'#b9a684',0.30]]){
+        ctx.globalAlpha=al; ctx.strokeStyle=cor; ctx.lineWidth=R*(r1-r0);
+        ctx.beginPath(); ctx.arc(0,0,R*(r0+r1)/2,Math.PI,Math.PI*2); ctx.stroke(); }
+      ctx.restore(); ctx.globalAlpha=1;
+    }
+
+    esfera(p.tex, c.x, c.y, R, p.rot, lx, ly);
+
+    // atmosfera: halo do lado iluminado, mais fino no escuro
+    const atm={terra:'128,196,255',venus:'255,226,164',urano:'168,244,248',
+               netuno:'96,146,255',marte:'226,148,108'}[p.tipo];
+    if(atm){
       ctx.globalCompositeOperation='lighter';
-      const bg=ctx.createRadialGradient(c.x,c.y,p.R*0.6, c.x,c.y,p.R*2.6);
-      bg.addColorStop(0,`rgba(255,240,200,${0.42*perto})`); bg.addColorStop(1,'rgba(255,180,60,0)');
-      ctx.fillStyle=bg; ctx.beginPath(); ctx.arc(c.x,c.y,p.R*2.6,0,7); ctx.fill();
-      // borda incandescente do lado voltado ao Sol
-      const ang=Math.atan2(sy-c.y,sx-c.x);
-      ctx.globalAlpha=perto*0.9; ctx.strokeStyle='#fff6da'; ctx.lineWidth=2.4;
-      ctx.beginPath(); ctx.arc(c.x,c.y,p.R*1.0,ang-1.15,ang+1.15); ctx.stroke();
+      const ag=ctx.createRadialGradient(c.x,c.y,R*0.95,c.x,c.y,R*1.16);
+      ag.addColorStop(0,`rgba(${atm},0.42)`); ag.addColorStop(1,`rgba(${atm},0)`);
+      ctx.fillStyle=ag; ctx.beginPath(); ctx.arc(c.x,c.y,R*1.16,0,7); ctx.fill();
       ctx.globalCompositeOperation='source-over';
     }
-    ctx.globalAlpha=1;
+
+    if(p.tipo==='saturno'){                                       // anéis à frente + sombra
+      ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(-0.38); ctx.scale(1,0.26);
+      for(const [r0,r1,cor,al] of [[1.28,1.46,'#e0cfa8',0.72],[1.50,1.68,'#f2e6c4',0.60],[1.72,1.92,'#c8b590',0.42]]){
+        ctx.globalAlpha=al; ctx.strokeStyle=cor; ctx.lineWidth=R*(r1-r0);
+        ctx.beginPath(); ctx.arc(0,0,R*(r0+r1)/2,0,Math.PI); ctx.stroke(); }
+      ctx.globalAlpha=0.5; ctx.strokeStyle='rgba(0,0,0,0.55)'; ctx.lineWidth=R*0.10;
+      ctx.beginPath(); ctx.arc(0,0,R*1.58,0.35,1.05); ctx.stroke();   // sombra do corpo no anel
+      ctx.restore(); ctx.globalAlpha=1;
+    }
+    if(p.tipo==='urano'){                                         // anel fino e vertical
+      ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(1.32); ctx.scale(1,0.16);
+      ctx.globalAlpha=0.42; ctx.strokeStyle='#cfeef2'; ctx.lineWidth=R*0.06;
+      ctx.beginPath(); ctx.arc(0,0,R*1.42,0,7); ctx.stroke(); ctx.restore(); ctx.globalAlpha=1;
+    }
   }
 
-  // ── LUA grandiosa, na mesma direção do Sol ──
-  const la=t*0.02, lx=sx-Math.cos(la)*W*0.20-W*0.06, ly=sy+Math.sin(la)*H*0.10+H*0.16;
-  ctx.globalAlpha=0.95; ctx.drawImage(LUA.tex.canvas, lx-LUA.tex.meio, ly-LUA.tex.meio);
-  ctx.globalCompositeOperation='lighter';
-  const lg=ctx.createRadialGradient(lx,ly,LUA.R*0.85, lx,ly,LUA.R*2.1);
-  lg.addColorStop(0,'rgba(220,235,255,0.30)'); lg.addColorStop(1,'rgba(180,210,255,0)');
-  ctx.fillStyle=lg; ctx.beginPath(); ctx.arc(lx,ly,LUA.R*2.1,0,7); ctx.fill();
-  ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+  /* ── LUA acompanhando a Terra ── */
+  const terra=corpos.find(c=>c.p.tipo==='terra');
+  if(terra){
+    LUA.rot=(LUA.rot+0.0006)%1;
+    const la=t*0.35, lx2=terra.x+Math.cos(la)*terra.p.R*2.5, ly2=terra.y+Math.sin(la)*terra.p.R*1.0;
+    esfera(LUA.tex, lx2, ly2, LUA.R, LUA.rot, sx-lx2, sy-ly2);
+  }
 }
 
 /* ── FEIXES DE LUZ saindo do núcleo do aglomerado de nós ── */
 function drawFeixesNucleo(t){
-  const core = nodes.find(n=>n.group==='core'); if(!core) return;
+  const core=nodes.find(n=>n.group==='core'); if(!core) return;
   const [x,y]=w2s(core.x,core.y);
   const base=Math.min(W,H)*0.55;
   ctx.globalCompositeOperation='lighter';
   ctx.save(); ctx.translate(x,y); ctx.rotate(t*0.11);
   for(let i=0;i<16;i++){
     const a=i/16*Math.PI*2;
-    // cada feixe respira no seu próprio compasso — nunca pulsam todos juntos
     const puls=0.35+0.65*Math.max(0,Math.sin(t*1.3+i*1.7));
     const L=base*(0.42+0.58*puls), lar=(2.2+5.5*puls)*scale;
     const gr=ctx.createLinearGradient(0,0,Math.cos(a)*L,Math.sin(a)*L);
@@ -441,13 +544,11 @@ function drawFeixesNucleo(t){
     gr.addColorStop(1,'rgba(40,120,255,0)');
     ctx.strokeStyle=gr; ctx.lineWidth=lar; ctx.lineCap='round';
     ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*L,Math.sin(a)*L); ctx.stroke();
-    // fagulha correndo pelo feixe
     const ft=((t*0.42+i/16)%1), fx=Math.cos(a)*L*ft, fy=Math.sin(a)*L*ft;
     ctx.globalAlpha=(1-ft)*puls*0.9; ctx.fillStyle='#dff6ff';
     ctx.beginPath(); ctx.arc(fx,fy,(1.6+2.4*(1-ft))*scale,0,7); ctx.fill(); ctx.globalAlpha=1;
   }
   ctx.restore();
-  // clarão pulsante no próprio núcleo
   const cl=0.5+0.5*Math.sin(t*2.1), RR=(38+26*cl)*scale;
   const cg=ctx.createRadialGradient(x,y,0,x,y,RR);
   cg.addColorStop(0,`rgba(230,252,255,${0.30+0.22*cl})`);
@@ -613,14 +714,7 @@ function neighbors(n){ const s=new Set(); for(const l of links){ if(l.s===n)s.ad
 function draw(){
   const t=(performance.now()-t0)/1000;
   ctx.clearRect(0,0,W,H);
-  if(neb) ctx.drawImage(neb,0,0);
-  // estrelas
-  for(const s of stars){ s.x+=s.l; if(s.x>W)s.x=0;
-    ctx.globalAlpha=0.25+0.3*(0.5+0.5*Math.sin(t*0.8+s.p));
-    ctx.fillStyle='#bfe9ff'; ctx.fillRect(s.x,s.y,s.r,s.r); }
-  ctx.globalAlpha=1;
-  drawConstellations(t);   // constelações + estrelas reluzentes (aditivo)
-  drawSistemaSolar(t);     // Sol, Lua e os nove corpos em órbita ao redor da malha
+  // fundo vem do WebGL (cosmos.js) — o 2D fica transparente
   drawVessels(t);          // correntes elétricas / "corrente sanguínea" do cérebro
   drawFeixesNucleo(t);     // feixes de luz irradiando do núcleo do aglomerado
 
