@@ -31,7 +31,7 @@
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.5, 4000);
-  camera.position.set(0, 130, 760);
+  camera.position.set(0, 150, 880);
   camera.lookAt(0, 0, 0);
 
   /* ─────────────── ruído compartilhado pelos shaders ─────────────── */
@@ -337,7 +337,18 @@
           // duas escalas de convecção em ritmos diferentes: a superfície nunca repete
           float gran = turb(vL*7.0 + vec3(0.0, uT*0.030, 0.0), 5);
           float sup  = turb(vL*2.4 - vec3(0.0, uT*0.016, 0.0), 4);
-          float e = gran*0.62 + sup*0.38;
+
+          /* FOGO CORRENDO PELA ESFERA.
+             O domínio é deslocado por um segundo campo que ele mesmo avança no
+             tempo — as línguas não piscam no lugar, elas ESCORREM pela
+             superfície, contornando e se rompendo, como plasma de verdade. */
+          vec3 fluxo = vec3(fbm(vL*3.1 + vec3(uT*0.055, 0.0, uT*0.031), 3),
+                            fbm(vL*3.1 + vec3(2.7, uT*0.047, 1.3), 3),
+                            fbm(vL*3.1 + vec3(4.1, 0.9, uT*0.039), 3)) - 0.5;
+          float chama = turb(vL*5.2 + fluxo*3.4 + vec3(0.0, uT*0.075, 0.0), 5);
+          chama = pow(smoothstep(0.34, 0.86, chama), 1.5);
+
+          float e = gran*0.44 + sup*0.26 + chama*0.30;
           vec3 fundo  = vec3(1.00,0.34,0.05);
           vec3 medio  = vec3(1.00,0.62,0.14);
           vec3 quente = vec3(1.00,0.92,0.66);
@@ -346,6 +357,8 @@
           // manchas: convecção suprimida
           float ma = turb(vL*1.7 + vec3(3.0,uT*0.006,0.0), 4);
           cor = mix(cor, vec3(0.42,0.11,0.02), smoothstep(0.70,0.86,ma)*0.85);
+          // crista da chama: o topo da língua queima quase branco
+          cor = mix(cor, vec3(1.00,0.97,0.86), pow(chama, 2.6)*0.62);
           // escurecimento de limbo — o Sol real é bem mais escuro na borda
           vec3 V = normalize(cameraPosition - vP);
           float limbo = pow(max(dot(normalize(vN),V),0.0), 0.55);
@@ -458,7 +471,7 @@
     // nome        raio  órbita  vel     giro   alt   atmosfera(cor, força)
     ['mercurio',   7.2,   88,   0.062,  0.05,  0.10,  null],
     ['venus',     12.6,  118,   0.046,  0.02, -0.16,  [0xffd9a0, 0.55]],
-    ['terra',     24.0,  168,   0.038,  0.30,  0.22,  [0x6ab4ff, 1.05]],
+    ['terra',     48.0,  262,   0.022,  0.30,  0.92,  [0x6ab4ff, 1.05]],
     ['marte',      9.6,  198,   0.030,  0.28, -0.10,  [0xe08a5a, 0.32]],
     ['jupiter',   39.0,  262,   0.017,  0.55,  0.30,  null],
     ['saturno',   33.0,  334,   0.013,  0.50, -0.26,  null],
@@ -468,7 +481,7 @@
   ];
 
   const INCL = 0.62;                       // achatamento das elipses na tela
-  const SOL_R = 58;
+  const SOL_R = 82;
   const sol = fazSol(SOL_R);
   sol.position.set(0, 0, 0);            // centro do espaço, como pedido
   scene.add(sol);
@@ -502,7 +515,8 @@
     scene.add(grupo);
     scene.add(fazOrbita(orb, INCL));
     planetas.push({ tipo, grupo, corpo, aneis, orb, vel, giro, alt, raio,
-                    fase: Math.random()*Math.PI*2, flut: 0.11 + Math.random()*0.13 });
+                    fase: tipo === 'terra' ? 0.62 : Math.random()*Math.PI*2,
+                    flut: 0.11 + Math.random()*0.13 });
   }
 
   /* ─── LUA MONUMENTAL no lado oposto ao Sol ───
@@ -510,9 +524,9 @@
      com os planetas. Diferente dos demais corpos, ela é iluminada de FRENTE
      (a luz vem do Sol, que está atrás da câmera em relação a ela), o que dá
      o disco cheio e o brilho de luar que o operador pediu. */
-  const LUA_R = SOL_R * 0.78;
+  const LUA_R = SOL_R * 0.95;
   const lua = fazPlaneta('lua', LUA_R);
-  lua.position.set(560, 96, -210);
+  lua.position.set(660, 118, -240);
   scene.add(lua);
 
   // halo frio do luar — painel que encara a câmera, mesma técnica da coroa solar
@@ -528,20 +542,22 @@
         vec2 d = vUv*2.0-1.0; float r = length(d);
         if(r > 1.0) discard;
         // núcleo fecha rápido, véu se estende — é o que o olho lê como luar
-        float nucleo = pow(max(0.0, 1.0 - r/0.30), 2.4);
-        float veu    = pow(max(0.0, 1.0 - r), 3.0);
-        float a = (nucleo*1.05 + veu*0.52) * (0.92 + 0.08*sin(uT*0.21));
-        vec3 cor = mix(vec3(0.62,0.74,0.95), vec3(0.92,0.96,1.00), pow(max(0.0,1.0-r),2.0));
-        gl_FragColor = vec4(cor, clamp(a,0.0,1.0)*1.35);
+        float nucleo = pow(max(0.0, 1.0 - r/0.34), 2.0);
+        float veu    = pow(max(0.0, 1.0 - r), 2.4);
+        float a = (nucleo*1.45 + veu*0.78) * (0.94 + 0.06*sin(uT*0.21));
+        // branco puro no miolo, esfriando para azul só na franja: é assim que
+        // o luar se lê como luz, e não como névoa colorida
+        vec3 cor = mix(vec3(0.74,0.83,1.00), vec3(1.00,1.00,1.00), pow(max(0.0,1.0-r),1.4));
+        gl_FragColor = vec4(cor, clamp(a,0.0,1.0)*1.75);
       }`,
   });
-  const luar = new THREE.Mesh(new THREE.PlaneGeometry(LUA_R * 8.6, LUA_R * 8.6), matLuar);
+  const luar = new THREE.Mesh(new THREE.PlaneGeometry(LUA_R * 9.4, LUA_R * 9.4), matLuar);
   luar.position.copy(lua.position);
   luar.onBeforeRender = (r, s, cam) => luar.quaternion.copy(cam.quaternion);
   scene.add(luar);
 
   // luz de preenchimento fria vinda da Lua: sem ela o lado oposto some no preto
-  const luzLua = new THREE.PointLight(0xbdd4ff, 0.55, 0, 2);
+  const luzLua = new THREE.PointLight(0xd8e6ff, 0.95, 0, 2);
   luzLua.position.copy(lua.position);
   scene.add(luzLua);
 
