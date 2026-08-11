@@ -31,8 +31,8 @@
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.5, 4000);
-  camera.position.set(46, 26, 196);
-  camera.lookAt(2, -2, -6);
+  camera.position.set(0, 130, 760);
+  camera.lookAt(0, 0, 0);
 
   /* ─────────────── ruído compartilhado pelos shaders ─────────────── */
   const RUIDO = `
@@ -392,6 +392,23 @@
     return g;
   }
 
+  /* Estrela é PONTO, não quadradinho. O PointsMaterial sem mapa desenha o
+     sprite inteiro — quadrados brancos espalhados pelo céu, o detalhe que
+     mais denuncia render amador. Um disco com queda suave resolve. */
+  const DISCO = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0.00, 'rgba(255,255,255,1)');
+    rg.addColorStop(0.22, 'rgba(255,255,255,0.92)');
+    rg.addColorStop(0.55, 'rgba(255,255,255,0.22)');
+    rg.addColorStop(1.00, 'rgba(255,255,255,0)');
+    g.fillStyle = rg; g.beginPath(); g.arc(32, 32, 32, 0, 7); g.fill();
+    const t = new THREE.CanvasTexture(c);
+    t.needsUpdate = true;
+    return t;
+  })();
+
   /* ─────────────── campo estelar em três camadas de parallax ─────────────── */
   function fazEstrelas(qtd, raio, tam, brilho) {
     const pos = new Float32Array(qtd * 3), cor = new Float32Array(qtd * 3);
@@ -412,10 +429,12 @@
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE.BufferAttribute(cor, 3));
     return new THREE.Points(g, new THREE.PointsMaterial({
-      size: tam, sizeAttenuation: true, vertexColors: true,
-      transparent: true, opacity: brilho, depthWrite: false, blending: THREE.AdditiveBlending,
+      size: tam, sizeAttenuation: true, vertexColors: true, map: DISCO,
+      transparent: true, opacity: brilho, depthWrite: false, alphaTest: 0.01,
+      blending: THREE.AdditiveBlending,
     }));
   }
+
 
   /* ─────────────── órbita: elipse fina com queda de opacidade ─────────────── */
   function fazOrbita(raio, incl) {
@@ -437,21 +456,21 @@
      cria planos de profundidade, como pede a composição de referência. */
   const CORPOS = [
     // nome        raio  órbita  vel     giro   alt   atmosfera(cor, força)
-    ['mercurio',   2.4,   38,   0.062,  0.05,  0.10,  null],
-    ['venus',      4.2,   52,   0.046,  0.02, -0.16,  [0xffd9a0, 0.55]],
-    ['terra',      4.6,   70,   0.038,  0.30,  0.22,  [0x6ab4ff, 1.05]],
-    ['marte',      3.2,   88,   0.030,  0.28, -0.10,  [0xe08a5a, 0.32]],
-    ['jupiter',   13.0,  116,   0.017,  0.55,  0.30,  null],
-    ['saturno',   11.0,  148,   0.013,  0.50, -0.26,  null],
-    ['urano',      6.8,  178,   0.010, -0.22,  0.34,  [0x9fe8ee, 0.60]],
-    ['netuno',     6.4,  206,   0.008,  0.24, -0.34,  [0x5f8dff, 0.62]],
-    ['plutao',     1.9,  232,   0.006,  0.10,  0.40,  null],
+    ['mercurio',   7.2,   88,   0.062,  0.05,  0.10,  null],
+    ['venus',     12.6,  118,   0.046,  0.02, -0.16,  [0xffd9a0, 0.55]],
+    ['terra',     24.0,  168,   0.038,  0.30,  0.22,  [0x6ab4ff, 1.05]],
+    ['marte',      9.6,  198,   0.030,  0.28, -0.10,  [0xe08a5a, 0.32]],
+    ['jupiter',   39.0,  262,   0.017,  0.55,  0.30,  null],
+    ['saturno',   33.0,  334,   0.013,  0.50, -0.26,  null],
+    ['urano',     20.4,  400,   0.010, -0.22,  0.34,  [0x9fe8ee, 0.60]],
+    ['netuno',    19.2,  462,   0.008,  0.24, -0.34,  [0x5f8dff, 0.62]],
+    ['plutao',     5.7,  520,   0.006,  0.10,  0.40,  null],
   ];
 
-  const INCL = 0.42;                       // achatamento das elipses na tela
-  const SOL_R = 26;
+  const INCL = 0.62;                       // achatamento das elipses na tela
+  const SOL_R = 58;
   const sol = fazSol(SOL_R);
-  sol.position.set(-104, 14, 44);           // fora do enquadramento à esquerda
+  sol.position.set(0, 0, 0);            // centro do espaço, como pedido
   scene.add(sol);
   const solPos = sol.position.clone();
 
@@ -482,14 +501,49 @@
     }
     scene.add(grupo);
     scene.add(fazOrbita(orb, INCL));
-    planetas.push({ tipo, grupo, corpo, aneis, orb, vel, giro, alt,
-                    fase: Math.random() * Math.PI * 2, raio });
+    planetas.push({ tipo, grupo, corpo, aneis, orb, vel, giro, alt, raio,
+                    fase: Math.random()*Math.PI*2, flut: 0.11 + Math.random()*0.13 });
   }
 
-  // Lua acompanhando a Terra
-  const terra = planetas.find(p => p.tipo === 'terra');
-  const lua = fazPlaneta('lua', 0.78);
+  /* ─── LUA MONUMENTAL no lado oposto ao Sol ───
+     Um pouco menor que o Sol e afastada do plano orbital, para não disputar
+     com os planetas. Diferente dos demais corpos, ela é iluminada de FRENTE
+     (a luz vem do Sol, que está atrás da câmera em relação a ela), o que dá
+     o disco cheio e o brilho de luar que o operador pediu. */
+  const LUA_R = SOL_R * 0.78;
+  const lua = fazPlaneta('lua', LUA_R);
+  lua.position.set(560, 96, -210);
   scene.add(lua);
+
+  // halo frio do luar — painel que encara a câmera, mesma técnica da coroa solar
+  const matLuar = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: { uT: { value: 0 } },
+    vertexShader: `varying vec2 vUv;
+      void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader: `
+      precision highp float;
+      varying vec2 vUv; uniform float uT;
+      void main(){
+        vec2 d = vUv*2.0-1.0; float r = length(d);
+        if(r > 1.0) discard;
+        // núcleo fecha rápido, véu se estende — é o que o olho lê como luar
+        float nucleo = pow(max(0.0, 1.0 - r/0.30), 2.4);
+        float veu    = pow(max(0.0, 1.0 - r), 3.0);
+        float a = (nucleo*1.05 + veu*0.52) * (0.92 + 0.08*sin(uT*0.21));
+        vec3 cor = mix(vec3(0.62,0.74,0.95), vec3(0.92,0.96,1.00), pow(max(0.0,1.0-r),2.0));
+        gl_FragColor = vec4(cor, clamp(a,0.0,1.0)*1.35);
+      }`,
+  });
+  const luar = new THREE.Mesh(new THREE.PlaneGeometry(LUA_R * 8.6, LUA_R * 8.6), matLuar);
+  luar.position.copy(lua.position);
+  luar.onBeforeRender = (r, s, cam) => luar.quaternion.copy(cam.quaternion);
+  scene.add(luar);
+
+  // luz de preenchimento fria vinda da Lua: sem ela o lado oposto some no preto
+  const luzLua = new THREE.PointLight(0xbdd4ff, 0.55, 0, 2);
+  luzLua.position.copy(lua.position);
+  scene.add(luzLua);
 
   scene.add(fazEstrelas(2600, 900, 1.5, 0.85));
   scene.add(fazEstrelas(1800, 1500, 2.4, 0.55));
@@ -521,7 +575,11 @@
 
     for (const p of planetas) {
       const a = t * p.vel + p.fase;
-      p.grupo.position.set(Math.cos(a)*p.orb, p.alt*p.orb*0.26 + Math.sin(a)*p.orb*INCL*0.18, Math.sin(a)*p.orb*INCL);
+      const flutY = Math.sin(t*p.flut + p.fase)*p.raio*0.55 + Math.sin(t*p.flut*0.41 + p.fase*2.0)*p.raio*0.28;
+      const flutX = Math.cos(t*p.flut*0.63 + p.fase)*p.raio*0.30;
+      p.grupo.position.set(Math.cos(a)*p.orb + flutX,
+                           p.alt*p.orb*0.26 + Math.sin(a)*p.orb*INCL*0.18 + flutY,
+                           Math.sin(a)*p.orb*INCL);
       const mats = p.tipo === 'terra'
         ? [p.corpo.userData.matSolo, p.corpo.userData.matNuvem]
         : [p.corpo.userData.mat];
@@ -537,15 +595,14 @@
       });
     }
 
-    if (terra) {
-      const la = t * 0.42;
-      lua.position.set(terra.grupo.position.x + Math.cos(la) * 5.6,
-                       terra.grupo.position.y + Math.sin(la) * 1.4,
-                       terra.grupo.position.z + Math.sin(la) * 5.6);
-      lua.userData.mat.uniforms.uT.value = t;
-      lua.userData.mat.uniforms.uGiro.value = la;
-      lua.userData.mat.uniforms.uSol.value.copy(solPos);
-    }
+    // LUA: gira devagar e flutua no lugar; o halo acompanha
+    lua.position.y = 96 + Math.sin(t * 0.13) * 14;
+    lua.userData.mat.uniforms.uT.value = t;
+    lua.userData.mat.uniforms.uGiro.value = t * 0.012;
+    lua.userData.mat.uniforms.uSol.value.copy(solPos);
+    luar.position.copy(lua.position);
+    matLuar.uniforms.uT.value = t;
+    luzLua.position.copy(lua.position);
 
     renderer.render(scene, camera);
   }
