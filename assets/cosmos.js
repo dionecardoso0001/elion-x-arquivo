@@ -31,7 +31,7 @@
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.5, 4000);
-  camera.position.set(0, 150, 880);
+  camera.position.set(0, 0, 940);
   camera.lookAt(0, 0, 0);
 
   /* ─────────────── ruído compartilhado pelos shaders ─────────────── */
@@ -348,7 +348,16 @@
           float chama = turb(vL*5.2 + fluxo*3.4 + vec3(0.0, uT*0.075, 0.0), 5);
           chama = pow(smoothstep(0.34, 0.86, chama), 1.5);
 
-          float e = gran*0.44 + sup*0.26 + chama*0.30;
+          /* BRASAS VIVAS — células que acendem e apagam em ritmos PRÓPRIOS.
+             O truque é a fase da respiração vir do próprio ruído: cada brasa
+             tem seu compasso, então o conjunto pulsa como carvão respirando,
+             sem nunca acender tudo ao mesmo tempo. */
+          float cel  = fbm(vL*11.0 + fluxo*1.2, 4);          // onde ficam as brasas
+          float faseC = fbm(vL*11.0 + vec3(17.3, 5.1, 9.7), 2) * 6.2831;
+          float resp = 0.5 + 0.5*sin(uT*0.85 + faseC);        // cada uma no seu tempo
+          float brasa = smoothstep(0.58, 0.90, cel) * resp;
+
+          float e = gran*0.38 + sup*0.22 + chama*0.26 + brasa*0.14;
           vec3 fundo  = vec3(1.00,0.34,0.05);
           vec3 medio  = vec3(1.00,0.62,0.14);
           vec3 quente = vec3(1.00,0.92,0.66);
@@ -359,6 +368,9 @@
           cor = mix(cor, vec3(0.42,0.11,0.02), smoothstep(0.70,0.86,ma)*0.85);
           // crista da chama: o topo da língua queima quase branco
           cor = mix(cor, vec3(1.00,0.97,0.86), pow(chama, 2.6)*0.62);
+          // núcleo da brasa: incandescência que respira, do vermelho ao branco
+          cor = mix(cor, vec3(1.00,0.88,0.58), pow(brasa, 1.8)*0.75);
+          cor += vec3(1.00,0.42,0.10) * pow(brasa, 3.0) * 0.55;
           // escurecimento de limbo — o Sol real é bem mais escuro na borda
           vec3 V = normalize(cameraPosition - vP);
           float limbo = pow(max(dot(normalize(vN),V),0.0), 0.55);
@@ -450,11 +462,14 @@
 
 
   /* ─────────────── órbita: elipse fina com queda de opacidade ─────────────── */
-  function fazOrbita(raio, incl) {
+  /* O traço da órbita tem de nascer no MESMO plano dos corpos, senão a linha
+     passa por onde nenhum planeta anda e a leitura de sistema se perde. */
+  function fazOrbita(raio, tilt) {
     const pts = [];
     for (let i = 0; i <= 512; i++) {
       const a = i / 512 * Math.PI * 2;
-      pts.push(new THREE.Vector3(Math.cos(a) * raio, 0, Math.sin(a) * raio * incl));
+      const ax = Math.cos(a) * raio, ay = Math.sin(a) * raio;
+      pts.push(new THREE.Vector3(ax, ay * Math.cos(tilt), -ay * Math.sin(tilt)));
     }
     const g = new THREE.BufferGeometry().setFromPoints(pts);
     return new THREE.Line(g, new THREE.LineBasicMaterial({
@@ -467,20 +482,27 @@
      distâncias reais tornariam os planetas invisíveis; a ordem é preservada,
      as proporções não. A coluna 'alt' tira os corpos de uma faixa única e
      cria planos de profundidade, como pede a composição de referência. */
+  /* TODOS no mesmo raio e no mesmo anel, igualmente espaçados. A ordem real
+     dos planetas é preservada no sentido do anel; o que muda é que nenhum
+     fica pequeno nem escondido — era o pedido. */
+  const R_ANEL = 300;          // raio do anel
+  const R_CORPO = 48;          // mesmo tamanho da Terra para todos
   const CORPOS = [
-    // nome        raio  órbita  vel     giro   alt   atmosfera(cor, força)
-    ['mercurio',   7.2,   88,   0.062,  0.05,  0.10,  null],
-    ['venus',     12.6,  118,   0.046,  0.02, -0.16,  [0xffd9a0, 0.55]],
-    ['terra',     48.0,  262,   0.022,  0.30,  0.92,  [0x6ab4ff, 1.05]],
-    ['marte',      9.6,  198,   0.030,  0.28, -0.10,  [0xe08a5a, 0.32]],
-    ['jupiter',   39.0,  262,   0.017,  0.55,  0.30,  null],
-    ['saturno',   33.0,  334,   0.013,  0.50, -0.26,  null],
-    ['urano',     20.4,  400,   0.010, -0.22,  0.34,  [0x9fe8ee, 0.60]],
-    ['netuno',    19.2,  462,   0.008,  0.24, -0.34,  [0x5f8dff, 0.62]],
-    ['plutao',     5.7,  520,   0.006,  0.10,  0.40,  null],
+    // nome        giro   atmosfera(cor, força)
+    ['mercurio',   0.05,  null],
+    ['venus',      0.02,  [0xffd9a0, 0.55]],
+    ['terra',      0.30,  [0x6ab4ff, 1.05]],
+    ['marte',      0.28,  [0xe08a5a, 0.32]],
+    ['jupiter',    0.55,  null],
+    ['saturno',    0.50,  null],
+    ['urano',     -0.22,  [0x9fe8ee, 0.60]],
+    ['netuno',     0.24,  [0x5f8dff, 0.62]],
+    ['plutao',     0.10,  null],
   ];
 
-  const INCL = 0.62;                       // achatamento das elipses na tela
+  const INCL = 0.62;
+  const TILT = 0.30;        // inclinação do anel: 3D sem encolher o fundo
+  const VEL_ANEL = 0.020;   // todos giram juntos                       // achatamento das elipses na tela
   const SOL_R = 82;
   const sol = fazSol(SOL_R);
   sol.position.set(0, 0, 0);            // centro do espaço, como pedido
@@ -493,7 +515,8 @@
   scene.add(new THREE.AmbientLight(0x14243a, 0.34));   // preenchimento mínimo, só para o preto não morrer
 
   const planetas = [];
-  for (const [tipo, raio, orb, vel, giro, alt, atm] of CORPOS) {
+  CORPOS.forEach(([tipo, giro, atm], idx) => {
+    const raio = R_CORPO, orb = R_ANEL;
     const grupo = new THREE.Group();
     const corpo = (tipo === 'terra') ? fazTerra(raio) : fazPlaneta(tipo, raio);
     grupo.add(corpo);
@@ -513,11 +536,12 @@
       grupo.add(a); aneis = a;
     }
     scene.add(grupo);
-    scene.add(fazOrbita(orb, INCL));
-    planetas.push({ tipo, grupo, corpo, aneis, orb, vel, giro, alt, raio,
-                    fase: tipo === 'terra' ? 0.62 : Math.random()*Math.PI*2,
-                    flut: 0.11 + Math.random()*0.13 });
-  }
+    planetas.push({ tipo, grupo, corpo, aneis, orb, giro, raio,
+                    fase: (idx / CORPOS.length) * Math.PI * 2,
+                    flut: 0.11 + Math.random() * 0.13 });
+  });
+
+  scene.add(fazOrbita(R_ANEL, TILT));    // um traço só, no mesmo plano dos corpos
 
   /* ─── LUA MONUMENTAL no lado oposto ao Sol ───
      Um pouco menor que o Sol e afastada do plano orbital, para não disputar
@@ -526,7 +550,7 @@
      o disco cheio e o brilho de luar que o operador pediu. */
   const LUA_R = SOL_R * 0.95;
   const lua = fazPlaneta('lua', LUA_R);
-  lua.position.set(660, 118, -240);
+  lua.position.set(596, 92, -230);
   scene.add(lua);
 
   // halo frio do luar — painel que encara a câmera, mesma técnica da coroa solar
@@ -590,12 +614,13 @@
     for (const c of sol.userData.coroas) c.uniforms.uT.value = t;
 
     for (const p of planetas) {
-      const a = t * p.vel + p.fase;
-      const flutY = Math.sin(t*p.flut + p.fase)*p.raio*0.55 + Math.sin(t*p.flut*0.41 + p.fase*2.0)*p.raio*0.28;
-      const flutX = Math.cos(t*p.flut*0.63 + p.fase)*p.raio*0.30;
-      p.grupo.position.set(Math.cos(a)*p.orb + flutX,
-                           p.alt*p.orb*0.26 + Math.sin(a)*p.orb*INCL*0.18 + flutY,
-                           Math.sin(a)*p.orb*INCL);
+      const a = t * VEL_ANEL + p.fase;
+      const flutY = Math.sin(t*p.flut + p.fase)*10 + Math.sin(t*p.flut*0.41 + p.fase*2.0)*6;
+      const flutX = Math.cos(t*p.flut*0.63 + p.fase)*8;
+      const ax = Math.cos(a)*p.orb, ay = Math.sin(a)*p.orb;
+      p.grupo.position.set(ax + flutX,
+                           ay*Math.cos(TILT) + flutY,
+                           -ay*Math.sin(TILT));
       const mats = p.tipo === 'terra'
         ? [p.corpo.userData.matSolo, p.corpo.userData.matNuvem]
         : [p.corpo.userData.mat];
