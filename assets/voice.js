@@ -447,6 +447,12 @@
 
   /** executor das ferramentas do modo LIVE — grava nos mesmos arquivos e atualiza a tela */
   async function liveExecTool(name, a) {
+    /* Alimenta o diário de atividade do ELION. No AO VIVO quem executa é o
+       navegador, então o servidor não vê a chamada — sem este aviso, tudo que
+       o operador faz POR VOZ ficaria fora da memória de trabalho dele.
+       Dispara sem esperar: registro nunca pode atrasar a resposta falada. */
+    fetch('/api/activity', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tool: name, modo: 'live' }) }).catch(() => {});
     try {
       switch (name) {
         case 'agenda_add': {

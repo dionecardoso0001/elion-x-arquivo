@@ -94,8 +94,72 @@ const GTOKEN_FILE = path.join(DATA_DIR, 'google-token.json');
 const FACES_FILE  = path.join(DATA_DIR, 'faces.json');
 const VOICES_FILE = path.join(DATA_DIR, 'voices.json');   // biometria VOCAL da família (local, no .gitignore)
 const WATCH_FILE  = path.join(DATA_DIR, 'watch.json');    // lista de vigilância (fontes primárias)
+const ATIV_FILE   = path.join(DATA_DIR, 'activity.json'); // diário de uso (comportamento do operador)
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIÁRIO DE ATIVIDADE — a memória de TRABALHO do ELION
+
+   memory.json guarda o que o operador MANDOU lembrar. Isto guarda o que ele
+   REALMENTE FAZ: qual ferramenta, quando, por qual modo. São coisas diferentes,
+   e faltava a segunda — o agente sabia fatos sobre o operador e nada sobre a
+   relação de trabalho com ele.
+
+   Ring buffer em disco: sem banco, sem crescimento sem fim. É registro de USO
+   (nome da ferramenta e horário), nunca o conteúdo do que foi dito ou lido —
+   o teor das conversas não entra aqui.
+   ═════════════════════════════════════════════════════════════════════════ */
+const ATIV_MAX = 4000;
+function ativRead() {
+  try { return JSON.parse(fs.readFileSync(ATIV_FILE, 'utf8')); } catch { return []; }
+}
+function ativLog(tool, modo = 'texto', rotulo = '') {
+  if (!tool) return;
+  try {
+    const l = ativRead();
+    l.push({ t: Date.now(), f: tool, m: modo, r: String(rotulo || '').slice(0, 60) });
+    fs.writeFileSync(ATIV_FILE, JSON.stringify(l.slice(-ATIV_MAX)), 'utf8');
+  } catch (e) { console.warn('[atividade] falhou:', e.message); }
+}
+
+/** Perfil de comportamento derivado do diário: o que ele usa, quando e com que constância. */
+function ativPerfil() {
+  const l = ativRead();
+  if (!l.length) return null;
+  const agora = Date.now(), DIA = 86400000;
+  const porFerr = new Map(), porHora = new Array(24).fill(0), dias = new Set();
+  let mUltimos7 = 0;
+  for (const e of l) {
+    porFerr.set(e.f, (porFerr.get(e.f) || 0) + 1);
+    // horário de Brasília: o operador trabalha aqui, o servidor pode não estar
+    const d = new Date(e.t);
+    porHora[+d.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false })]++;
+    dias.add(d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+    if (agora - e.t < 7 * DIA) mUltimos7++;
+  }
+  const top = [...porFerr.entries()].sort((a, b) => b[1] - a[1]);
+  const picos = porHora.map((n, h) => ({ h, n })).sort((a, b) => b.n - a.n).filter(x => x.n > 0).slice(0, 3);
+  return {
+    total: l.length, dias: dias.size, ultimos7: mUltimos7,
+    desde: new Date(l[0].t).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+    top: top.slice(0, 8).map(([f, n]) => ({ f, n })),
+    contagem: porFerr,
+    picos: picos.map(p => `${String(p.h).padStart(2, '0')}h`),
+    porModo: l.reduce((a, e) => (a[e.m] = (a[e.m] || 0) + 1, a), {}),
+  };
+}
+
+/** bloco curto injetado no prompt — o agente CONHECE o hábito do operador */
+function ativContextBlock() {
+  const p = ativPerfil();
+  if (!p || p.total < 5) return '';
+  const nomes = p.top.slice(0, 6).map(x => `${x.f} (${x.n}x)`).join(', ');
+  return `\nCOMO O OPERADOR TRABALHA COM VOCÊ (diário de uso, ${p.total} ações em ${p.dias} dia(s) desde ${p.desde}):
+- Recursos que ele mais aciona: ${nomes}.
+- Horários de pico: ${p.picos.join(', ')}. Últimos 7 dias: ${p.ultimos7} ações.
+Use isto para ANTECIPAR: ofereça primeiro o que ele costuma pedir, e no horário em que costuma pedir. Não recite estes números para ele a menos que pergunte — é o seu conhecimento do hábito dele, não relatório.\n`;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  PERSONA / SYSTEM PROMPT
@@ -123,7 +187,7 @@ DATA E HORA ATUAIS (Brasília): ${agora}
 ${(() => { const g = geoRead(); return g && g.place
   ? `LOCALIZAÇÃO ATUAL DO OPERADOR (GPS do computador dele, FONTE AUTORITATIVA): ${g.place.city}${g.place.region ? ', ' + g.place.region : ''} — ${g.place.country}. Para clima/tempo SEM cidade explícita na fala, chame get_weather SEM location (usa este GPS automaticamente). NUNCA adivinhe a cidade a partir da agenda ou da memória.`
   : 'LOCALIZAÇÃO PADRÃO DO OPERADOR: Santos, São Paulo, Brasil (GPS ainda não disponível)'; })()}
-${memBlock}${agBlock}${portfolioBlock()}${docContextBlock()}${watchBlock()}${(() => { const fs2 = facesRead(); return fs2.length ? `\nROSTOS JÁ CADASTRADOS no reconhecimento facial (você reconhece estas pessoas em qualquer dispositivo): ${fs2.map(f => `${f.name}${f.relation ? ' (' + f.relation + ')' : ''}`).join(', ')}.\n` : '\nNenhum rosto cadastrado ainda no reconhecimento facial.\n'; })()}${(() => { const vz = voicesRead(); return vz.length ? `\nVOZES JÁ CADASTRADAS na biometria vocal (você reconhece estas pessoas SÓ PELA VOZ, sem precisar de câmera): ${vz.map(v => `${v.nome}${v.relacao ? ' (' + v.relacao + ')' : ''}`).join(', ')}. Quando o sistema informar quem está falando, TRATE A PESSOA PELO NOME e ajuste o tom a ela.\n` : '\nNenhuma voz cadastrada ainda na biometria vocal — ofereça cadastrar com enroll_voice quando fizer sentido.\n'; })()}
+${memBlock}${agBlock}${portfolioBlock()}${docContextBlock()}${watchBlock()}${ativContextBlock()}${(() => { const fs2 = facesRead(); return fs2.length ? `\nROSTOS JÁ CADASTRADOS no reconhecimento facial (você reconhece estas pessoas em qualquer dispositivo): ${fs2.map(f => `${f.name}${f.relation ? ' (' + f.relation + ')' : ''}`).join(', ')}.\n` : '\nNenhum rosto cadastrado ainda no reconhecimento facial.\n'; })()}${(() => { const vz = voicesRead(); return vz.length ? `\nVOZES JÁ CADASTRADAS na biometria vocal (você reconhece estas pessoas SÓ PELA VOZ, sem precisar de câmera): ${vz.map(v => `${v.nome}${v.relacao ? ' (' + v.relacao + ')' : ''}`).join(', ')}. Quando o sistema informar quem está falando, TRATE A PESSOA PELO NOME e ajuste o tom a ela.\n` : '\nNenhuma voz cadastrada ainda na biometria vocal — ofereça cadastrar com enroll_voice quando fizer sentido.\n'; })()}
 
 PERSONALIDADE:
 - Voz calma, grave e enigmática — precisão cirúrgica com um toque de mistério
@@ -1477,6 +1541,67 @@ function brainData() {
   // alvos sob vigilância — é a carteira de clientes do operador, o painel deve mostrá-la
   try { watchRead().alvos.slice(0, CAP).forEach(a => { add('wt:' + a.id, a.termo.replace(/"/g, '').slice(0, 40), 'record', 9, { sub: 'vigiado', fontes: a.fontes, desde: (a.criadoEm || '').slice(0, 10) }); link('cap:vigilancia', 'wt:' + a.id, 'rec'); }); } catch {}
 
+  /* CONTATOS AUTORIZADOS no WhatsApp com o PERFIL DE RELACIONAMENTO aprendido.
+     Isto é comportamento aprendido, não configuração: ao liberar um contato o
+     agente lê o histórico e deduz parentesco, tom e assuntos. Estava só em
+     disco — o painel mostrava a auto-resposta e escondia o que a sustenta. */
+  try {
+    JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'wa-allow.json'), 'utf8')).forEach((c, i) => {
+      const nome = c.name || c.nome || c.id || ('contato ' + i);
+      const perfil = c.profile || c.perfil || '';
+      // relação aprendida vem na 1ª linha do perfil ("RELAÇÃO: familiar/filha")
+      const rel = (/RELA[ÇC][ÃA]O:\s*([^\n]+)/i.exec(perfil) || [])[1];
+      add('waok:' + i, nome, 'record', perfil ? 11 : 9,
+          { sub: rel ? `contato · ${rel.trim()}` : 'contato autorizado',
+            perfilAprendido: perfil ? 'sim' : 'ainda não lido',
+            perfil: perfil.slice(0, 300) });
+      link('cap:whatsapp', 'waok:' + i, 'rec');
+    });
+  } catch {}
+
+  // documento ativo — 90 mil caracteres carregados e o cérebro não os enxergava
+  try {
+    const d = docRead();
+    if (d) {
+      add('doc:ativo', d.name, 'record', 13,
+          { sub: 'documento ativo', formato: d.kind, paginas: d.pages || undefined,
+            caracteres: d.chars, partes: Math.max(1, Math.ceil(d.chars / 40000)) });
+      link('cap:documentos', 'doc:ativo', 'rec');
+    }
+  } catch {}
+
+  /* MEMÓRIA DE TRABALHO — como o operador usa o agente.
+     O peso de cada capacidade passa a refletir o USO REAL: a que ele mais
+     aciona incha no grafo. Antes o tamanho vinha só da contagem de ferramentas,
+     então uma capacidade nunca usada parecia tão central quanto a vigilância. */
+  const perfilUso = ativPerfil();     // um único parse do diário por montagem
+  try {
+    const p = perfilUso;
+    if (p) {
+      add('atividade', 'Memória de Trabalho', 'activity-hub', 20,
+          { desc: 'Como o operador trabalha com o ELION', acoes: p.total, dias: p.dias,
+            ultimos7: p.ultimos7, desde: p.desde, picos: p.picos.join(', '),
+            modos: Object.entries(p.porModo).map(([m, n]) => `${m}: ${n}`).join(' · ') });
+      link('elion', 'atividade', 'bridge');
+      for (const { f, n } of p.top) {
+        add('uso:' + f, `${f} · ${n}x`, 'activity', 7 + Math.min(9, Math.round(Math.log2(n + 1) * 2.4)),
+            { sub: 'uso registrado', ferramenta: f, vezes: n });
+        link('atividade', 'uso:' + f, 'rec');
+        // liga ao domínio dono da ferramenta: o hábito atravessa a capacidade
+        const dono = DOMINIOS.find(d => d.tools.includes(f));
+        if (dono && nodes.some(x => x.id === 'cap:' + dono.id)) links.push({ source: 'uso:' + f, target: 'cap:' + dono.id, kind: 'habito' });
+      }
+      // capacidade usada fica maior — o grafo passa a mostrar o que é vivo
+      for (const nd of nodes) {
+        if (nd.group !== 'capability') continue;
+        const dom = DOMINIOS.find(d => 'cap:' + d.id === nd.id);
+        if (!dom) continue;
+        const usos = dom.tools.reduce((a, t) => a + (p.contagem.get(t) || 0), 0);
+        if (usos) { nd.size += Math.min(10, Math.round(Math.log2(usos + 1) * 2.2)); nd.meta.usos = usos; }
+      }
+    }
+  } catch (e) { console.warn('[brain] atividade:', e.message); }
+
   const obs = obsidianGraph();
   let fusionCount = 0;
   if (obs.ok && obs.notes.length) {
@@ -1505,6 +1630,8 @@ function brainData() {
     stats: { capabilities: nodes.filter(n => n.group === 'capability').length,
              ferramentas: TOOLS.length,
              records: nodes.filter(n => n.group === 'record').length,
+             atividade: nodes.filter(n => n.group === 'activity').length,
+             acoes: (perfilUso || {}).total || 0,
              obsidian: obs.count || 0, fusion: fusionCount } };
 }
 function memWrite(list) {
@@ -2434,6 +2561,10 @@ function canonScreen(s) {
 async function execTool(tu, send) {
   const result = (content, isError = false) =>
     ({ type: 'tool_result', tool_use_id: tu.id, content, ...(isError ? { is_error: true } : {}) });
+  /* Registro no ponto ÚNICO por onde toda ferramenta passa. Instrumentar caso a
+     caso garantiria que a próxima ferramenta nasceria fora do diário — o mesmo
+     jeito de errar que já deixou ferramentas sem executor no modo AO VIVO. */
+  ativLog(tu.name, 'texto');
   try {
     switch (tu.name) {
       case 'web_search': {
@@ -3234,7 +3365,7 @@ ${ag.length ? ag.map(i => `- ${i.date} às ${i.time} — ${i.title}${i.location 
 
 MEMÓRIA PERSISTENTE DO OPERADOR:
 ${mems.length ? mems.map(m => `- ${m.content}`).join('\n') : '(vazia)'}
-${portfolioBlock()}
+${portfolioBlock()}${ativContextBlock()}
 REGRA CRÍTICA: quando o operador perguntar "quais compromissos tenho?", "tenho algo hoje/amanhã?", responda DIRETAMENTE a partir da AGENDA acima, em fala natural com dias relativos — NUNCA peça dia, horário ou mais detalhes para responder. Use agenda_list apenas para reconfirmar se algo mudou durante esta conversa.`;
 }
 
@@ -3886,6 +4017,23 @@ IMPORTANTE: responda com JSON CRU, sem cercas de código markdown (nada de crase
     }
 
     // ── CONSELHO DE DECISÃO (usado pelo modo AO VIVO e pelo botão) ──
+    /* Diário de atividade do modo AO VIVO. Lá quem executa as ferramentas é o
+       NAVEGADOR — sem esta rota, metade do comportamento do operador (justo a
+       metade em que ele conversa por voz) ficaria fora da memória de trabalho. */
+    if (url.pathname === '/api/activity') {
+      if (req.method === 'POST') {
+        const { tool, modo, rotulo } = JSON.parse(await readBody(req) || '{}');
+        ativLog(tool, modo || 'live', rotulo);
+        return json(res, 200, { ok: true });
+      }
+      const p = ativPerfil();
+      if (!p) return json(res, 200, { total: 0 });
+      return json(res, 200, {
+        total: p.total, dias: p.dias, ultimos7: p.ultimos7, desde: p.desde,
+        picos: p.picos, porModo: p.porModo, top: p.top,
+      });
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/council') {
       if (!API_KEY) return json(res, 503, { error: 'ANTHROPIC_API_KEY ausente' });
       const { question, context, mode, confidence, adaptive, measureDiversity } = JSON.parse(await readBody(req) || '{}');

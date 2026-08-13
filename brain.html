@@ -128,12 +128,17 @@ const GROUPS = {
   record:        {c:'#00ff9d', label:'Registros / tarefas'},
   'obsidian-hub':{c:'#a855f7', label:'Obsidian (hub)'},
   obsidian:      {c:'#c084fc', label:'Notas Obsidian'},
+  // âmbar para o hábito: distingue o que o operador FEZ do que ele GUARDOU
+  'activity-hub':{c:'#ffb020', label:'Memória de trabalho'},
+  activity:      {c:'#ffd166', label:'Uso registrado'},
 };
 const LINKC = { core:'rgba(0,229,255,.42)', rec:'rgba(0,255,157,.22)', wiki:'rgba(192,132,252,.38)',
-                bridge:'rgba(255,196,77,.55)', hub:'rgba(168,85,247,.22)', fusion:'rgba(255,196,77,.5)', sys:'rgba(0,229,255,.3)' };
-const PULSEC = { core:'#8ff4ff', rec:'#5cffc2', wiki:'#e0c3ff', bridge:'#ffd77e', hub:'#c084fc', fusion:'#ffd77e', sys:'#8ff4ff' };
-const CURV = { wiki:0.16, fusion:0.22, bridge:0.12, core:0.09, rec:0.07, hub:0.10, sys:0.08 };
-const DIST = { wiki:70, fusion:170, bridge:260, core:130, rec:95, hub:85, sys:110 };
+                bridge:'rgba(255,196,77,.55)', hub:'rgba(168,85,247,.22)', fusion:'rgba(255,196,77,.5)',
+                habito:'rgba(255,176,32,.30)', sys:'rgba(0,229,255,.3)' };
+const PULSEC = { core:'#8ff4ff', rec:'#5cffc2', wiki:'#e0c3ff', bridge:'#ffd77e', hub:'#c084fc', fusion:'#ffd77e',
+                 habito:'#ffd166', sys:'#8ff4ff' };
+const CURV = { wiki:0.16, fusion:0.22, bridge:0.12, core:0.09, rec:0.07, hub:0.10, habito:0.20, sys:0.08 };
+const DIST = { wiki:70, fusion:170, bridge:260, core:130, rec:95, hub:85, habito:150, sys:110 };
 
 const cv = document.getElementById('graph'), ctx = cv.getContext('2d');
 let W=0,H=0,DPR=1;
@@ -617,7 +622,8 @@ async function load(){
   OBS.vaultName = (d.obsidian&&d.obsidian.vaultName)||'';
   if(d.stats) document.getElementById('stats').innerHTML =
     `<b>${d.stats.capabilities}</b> funções · <b>${d.stats.records}</b> registros<br>`+
-    `<b>${d.stats.obsidian}</b> notas · <i>${d.stats.fusion||0} fusões</i>`;
+    `<b>${d.stats.obsidian}</b> notas · <i>${d.stats.fusion||0} fusões</i>`+
+    (d.stats.acoes ? ` · <b style="color:#ffb020">${d.stats.acoes}</b> ações` : '');
   renderLegend();
   const o=d.obsidian||{}, st=document.getElementById('obsStatus');
   if(o.ok){ st.innerHTML=`<span style="color:var(--green)">✓ conectado</span> — ${o.count} notas${o.truncated?' (limite 700)':''} · <span style="color:var(--gold)">${d.stats.fusion||0} fusões</span>`; document.getElementById('obsPath').value=o.vault||''; }
