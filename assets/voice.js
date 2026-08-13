@@ -558,7 +558,7 @@
           return `Resposta automática do WhatsApp ${r.autoReply ? 'ligada' : 'desligada'}.`;
         }
         case 'council_review': {
-          const c = await fetch('/api/council', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: a.question, mode: a.mode || 'jury', confidence: !!a.confidence, adaptive: !!a.adaptive, measureDiversity: !!a.measureDiversity }) }).then(x => x.json());
+          const c = await fetch('/api/council', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: a.question, context: a.context || '', mode: a.mode || 'jury', confidence: !!a.confidence, adaptive: !!a.adaptive, measureDiversity: !!a.measureDiversity }) }).then(x => x.json());
           if (c.error) return 'O conselho não pôde deliberar: ' + c.error;
           ELX.council?.render(c);
           const extra = (c.tally ? ` Placar ponderado por confiança: Sim ${c.tally.weights.Sim}, Não ${c.tally.weights['Não']}, Depende ${c.tally.weights.Depende} (líder ${c.tally.leader}).` : '')
@@ -623,10 +623,26 @@
             return r.ok ? `Câmera alternada para: ${r.msg}. A visão computacional usará essa câmera de alta definição.` : 'Não foi possível trocar a câmera: ' + r.msg;
           } catch (e) { return 'ERRO ao trocar de câmera: ' + e.message; }
         }
+        /* DOCUMENTOS NO AO VIVO. Antes: '/api/document?text=1' sempre, e a rota
+           devolvia calada os primeiros 40 mil caracteres — num PDF de 300
+           páginas o ELION falado analisava 13% e concluía como se tivesse lido
+           tudo. Agora tem os mesmos dois modos do texto: busca no documento
+           INTEIRO (query) e leitura paginada com aviso de continuação. */
         case 'read_document': {
-          const d = await fetch('/api/document?text=1').then(x => x.json());
-          if (!d.active) return 'Nenhum documento ativo. Peça ao operador para enviar um documento na plataforma.';
-          return `Documento "${d.name}":\n\n${d.text || ''}`;
+          const q = String(a.query || '').trim();
+          const parte = Math.max(parseInt(a.parte, 10) || 1, 1);
+          const u = q ? `/api/document?query=${encodeURIComponent(q)}`
+                      : `/api/document?text=1&parte=${parte}`;
+          const d = await fetch(u).then(x => x.json());
+          if (!d.active) return 'Nenhum documento ativo. Peça ao operador para enviar um documento pelo botão DOC da plataforma.';
+          const cab = `Documento "${d.name}"${d.pages ? ` (${d.pages} págs)` : ''} · ${d.chars} caracteres`;
+          if (q) {
+            if (!d.ocorrencias) return `${cab} · busca por "${q}": nenhuma ocorrência literal. Tente outra palavra/sinônimo, ou leia por partes (parte:1 a ${d.totalPartes}).`;
+            return `${cab} · busca por "${q}" · ${d.ocorrencias} trecho(s):\n\n${d.text}\n\n` +
+              'Responda a partir DESTES trechos, citando de que parte veio cada fato. Na fala, seja breve: a conclusão e o número/cláusula que a sustenta.';
+          }
+          return `${cab}${d.totalPartes > 1 ? ` · PARTE ${d.parte} de ${d.totalPartes}` : ''}:\n\n${d.text || ''}` +
+            (d.aviso ? `\n\n⚠ ${d.aviso} NUNCA diga que leu o documento inteiro sem chegar à última parte — se o operador quer só um ponto específico, prefira chamar de novo com query.` : '');
         }
         case 'enroll_face': {
           try {
@@ -1006,6 +1022,10 @@
 
   ELX.voice = {
     speak, stop: stopSpeak, hold,
+    /* Executor das ferramentas do LIVE exposto para VERIFICAÇÃO: é o único
+       caminho que o agente falado percorre, e sem um gancho só dá para testá-lo
+       falando com o microfone — o que não é teste, é demonstração. */
+    execTool: liveExecTool,
     startSTT, stopSTT, ensureCtx,
     suspendListening, resumeListening, pushToTalkOnce,
     cfg: VOICE_CFG,

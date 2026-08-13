@@ -420,11 +420,12 @@ const TOOLS = [
   },
   {
     name: 'council_review',
-    description: 'Convoca o CONSELHO DE DECISÃO do ELION-X — um tribunal de IAs com métodos de raciocínio distintos (5 conselheiros + advogado do diabo + juízes) que pressiona uma decisão importante com trade-offs reais e entrega um veredito sintetizado. Use quando o operador pedir para "convocar/reunir o conselho", "deliberar", "pressionar/estressar/testar uma decisão", "tribunal", "o que o conselho acha", ou diante de uma escolha de peso (estratégica, financeira, de carreira). NÃO use para perguntas simples — só para decisões reais com dilema. IMPORTANTE: se a mensagem do operador começar com um cabeçalho [CONSELHO · modo=… · confiança=on/off · adaptativo=on/off · diversidade=on/off], use EXATAMENTE esses valores nos parâmetros (mode, confidence, adaptive, measureDiversity) e a linha "Decisão:" como question.',
+    description: 'Convoca o CONSELHO DE DECISÃO do ELION-X — um tribunal de IAs com métodos de raciocínio distintos (5 conselheiros + advogado do diabo + juízes) que pressiona uma decisão importante com trade-offs reais e entrega um veredito sintetizado. Use quando o operador pedir para "convocar/reunir o conselho", "deliberar", "pressionar/estressar/testar uma decisão", "tribunal", "o que o conselho acha", ou diante de uma escolha de peso (estratégica, financeira, de carreira). NÃO use para perguntas simples — só para decisões reais com dilema. Se a decisão nasce de um DOCUMENTO carregado (proposta, contrato, edital, RFP): LEIA o documento primeiro (read_document) e entregue os fatos extraídos no campo context — os conselheiros NÃO enxergam o documento, só o que você passar. IMPORTANTE: se a mensagem do operador começar com um cabeçalho [CONSELHO · modo=… · confiança=on/off · adaptativo=on/off · diversidade=on/off], use EXATAMENTE esses valores nos parâmetros (mode, confidence, adaptive, measureDiversity) e a linha "Decisão:" como question.',
     input_schema: {
       type: 'object',
       properties: {
         question: { type: 'string', description: 'A decisão ou dilema a deliberar, com contexto suficiente para o conselho avaliar' },
+        context: { type: 'string', description: 'DOSSIÊ DE FATOS para os conselheiros: números, prazos, cláusulas, riscos e restrições extraídos de documento/conversa/investigação. Sem isso o conselho delibera só com a pergunta. Fatos objetivos, não a sua opinião.' },
         mode: { type: 'string', description: 'Modo base: "full"/"completo" = 5 conselheiros + REVISÃO ANÔNIMA POR PARES + advogado do diabo + chairman; "jury"/"júri" = igual ao full mas com 3 juízes independentes que reconciliam o veredito (decisão crítica/placar apertado); "quick"/"rápido" = 3 conselheiros, sem revisão por pares (gut-check). PADRÃO: "jury".' },
         confidence: { type: 'boolean', description: 'Quando true: cada conselheiro declara uma nota de confiança (1-10) e o veredito é PONDERADO POR CONFIANÇA, não por maioria. Use quando o operador disser "ponderar/calibrar por confiança", "quão certo o conselho está".' },
         adaptive: { type: 'boolean', description: 'Quando true: o conselho roda em RODADAS de revisão por pares e para sozinho quando os conselheiros convergem (economiza, e mostra em quantas rodadas estabilizou). Use para "deixar convergir", "debater até estabilizar", "modo adaptativo".' },
@@ -435,12 +436,12 @@ const TOOLS = [
   },
   {
     name: 'read_document',
-    description: 'Obtém o conteúdo do DOCUMENTO ATIVO que o operador carregou (PDF/Word/PowerPoint/Excel/TXT/código). Use SEMPRE que ele pedir para analisar, resumir, comentar, explicar ou perguntar qualquer coisa sobre o documento. Documentos grandes vêm em PARTES de 40 mil caracteres: o retorno avisa quando há mais — continue chamando com parte:2, parte:3… até o fim ANTES de concluir qualquer análise completa.',
+    description: 'Obtém o conteúdo do DOCUMENTO ATIVO que o operador carregou (PDF/Word/PowerPoint/Excel/TXT/código). Use SEMPRE que ele pedir para analisar, resumir, comentar, explicar ou perguntar qualquer coisa sobre o documento. DOIS MODOS: (1) query="termo" BUSCA no documento INTEIRO de uma vez e devolve os trechos com contexto — ideal para pergunta pontual ("o que diz sobre multa/prazo/valor?") sem gastar leituras; (2) parte:N lê o texto corrido em partes de 40 mil caracteres — o retorno avisa quando há mais; para análise completa continue com parte:2, parte:3… até o fim ANTES de concluir. Nunca afirme ter lido tudo sem chegar à última parte.',
     input_schema: {
       type: 'object',
       properties: {
-        parte: { type: 'integer', description: 'Qual parte ler (1 é a primeira). O retorno informa o total de partes.' },
-        query: { type: 'string', description: 'Opcional: tema/trecho de interesse para focar a leitura' },
+        parte: { type: 'integer', description: 'Leitura corrida: qual parte ler (1 é a primeira). O retorno informa o total de partes.' },
+        query: { type: 'string', description: 'Busca focada: termo/tema de interesse — varre o documento inteiro (ignora acentos e caixa) e devolve os trechos encontrados com o endereço da parte. Se vier junto com parte, a query vence.' },
       },
     },
   },
@@ -717,7 +718,7 @@ async function cptecForecast(cityName) {
 /* previsão OFICIAL do INMET (reserva quando o CPTEC está fora do ar) */
 const UF_SIGLA = { 'Acre':'AC','Alagoas':'AL','Amapá':'AP','Amazonas':'AM','Bahia':'BA','Ceará':'CE','Distrito Federal':'DF','Espírito Santo':'ES','Goiás':'GO','Maranhão':'MA','Mato Grosso':'MT','Mato Grosso do Sul':'MS','Minas Gerais':'MG','Pará':'PA','Paraíba':'PB','Paraná':'PR','Pernambuco':'PE','Piauí':'PI','Rio de Janeiro':'RJ','Rio Grande do Norte':'RN','Rio Grande do Sul':'RS','Rondônia':'RO','Roraima':'RR','Santa Catarina':'SC','São Paulo':'SP','Sergipe':'SE','Tocantins':'TO' };
 const ibgeCache = new Map(); // UF → [{id, nome}]
-const simplifyCity = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+const simplifyCity = s => String(s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9]/g, '');
 async function inmetForecast(cityName, stateName) {
   const uf = UF_SIGLA[stateName] || '';
   if (!uf) return null;
@@ -1486,7 +1487,7 @@ function brainData() {
     for (const l of obs.links) { links.push({ source: l.source, target: l.target, kind: 'wiki' }); linked.add(l.source); linked.add(l.target); }
     for (const n of obs.notes) if (!linked.has(n.id)) link('obsidian', n.id, 'hub');
     // FUSÃO SEMÂNTICA — nota do Obsidian ↔ registro/função do ELION que cita o mesmo assunto
-    const strip = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const strip = s => String(s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
     const STOP = new Set(['para', 'com', 'sobre', 'como', 'mais', 'este', 'esta', 'pelo', 'pela', 'entre', 'apos', 'nota', 'notas', 'daily', 'index', 'readme', 'home', 'inbox', 'tarefa', 'tarefas', 'ideias', 'geral']);
     const targets = nodes.filter(n => n.group === 'record' || n.group === 'capability');
     const hays = targets.map(n => strip([n.label, n.meta && n.meta.full, n.meta && n.meta.text, n.meta && n.meta.sub, n.meta && n.meta.where].filter(Boolean).join(' ')));
@@ -1714,7 +1715,7 @@ async function waAuthorizeContact(wa, rawName) {
   } else profTxt = ' (sem conversa anterior — responderei com tom neutro e cordial até conhecer o estilo)';
   return `✓ ${best.name} AUTORIZADO(A) para resposta automática.${profTxt}`;
 }
-const simplifyGuard = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+const simplifyGuard = s => String(s || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9]/g, '');
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  DOCUMENTOS — PDF / DOCX / PPTX / TXT: extração + documento ativo em contexto
@@ -1746,6 +1747,33 @@ async function pdfNativeExtract(buffer) {
   return j.content?.find(b => b.type === 'text')?.text || '';
 }
 
+/* OCR de IMAGEM — foto ou print de documento. Metade do que se recebe na vida
+   real é o celular apontado para um papel: sem isto o botão DOC responde
+   "formato não suportado" para o caso mais comum de todos. Mesma transcrição
+   estruturada do PDF digitalizado, com o cuidado extra de NÃO adivinhar
+   número mal resolvido — em contrato, um dígito inventado é pior que um vazio. */
+async function imagemNativaExtract(buffer, mediaType) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: MODEL, max_tokens: 4096,
+      system: 'Você transcreve documentos fotografados ou digitalizados. Extraia TODO o texto legível em português, preservando a estrutura (títulos, seções, listas, tabelas — tabelas em markdown). Descreva brevemente gráficos, carimbos e assinaturas entre colchetes. Se um trecho estiver ilegível, escreva [ilegível] — NUNCA adivinhe número, valor, data ou nome mal resolvido. Responda só com o conteúdo transcrito.',
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: buffer.toString('base64') } },
+        { type: 'text', text: 'Transcreva este documento por completo.' },
+      ] }],
+    }),
+    signal: AbortSignal.timeout(120000),
+  });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message);
+  return j.content?.find(b => b.type === 'text')?.text || '';
+}
+
+const IMG_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+                   webp: 'image/webp', gif: 'image/gif' };
+
 // texto puro que abre direto — inclui código-fonte e config, porque o operador
 // desenvolve projetos de TI e sobe spec, script e log tanto quanto PDF
 const TEXT_EXTS = new Set(['txt', 'md', 'csv', 'json', 'xml', 'html', 'htm', 'yaml', 'yml',
@@ -1771,10 +1799,30 @@ async function ingestDocument({ name, data }) {
     text = await docs.extractPptx(buffer);
   } else if (ext === 'xlsx') {
     text = await docs.extractXlsx(buffer);
+  } else if (IMG_MIME[ext]) {
+    if (!API_KEY) throw new Error('imagem exige ANTHROPIC_API_KEY para transcrição');
+    text = await imagemNativaExtract(buffer, IMG_MIME[ext]);
+    kind = `imagem (transcrita)`;
+  } else if (ext === 'rtf') {
+    /* RTF sem biblioteca: derruba grupos de controle (\\*\\fonttbl…), converte
+       \\'xx para o byte correspondente e remove as palavras de controle. Basta
+       para contrato e proposta, que é o RTF que aparece na prática. */
+    text = buffer.toString('latin1')
+      .replace(/\{\\\*[\s\S]*?\}/g, '')
+      .replace(/\\par[d]?\b/g, '\n')
+      .replace(/\\tab\b/g, '\t')
+      .replace(/\\'([0-9a-f]{2})/gi, (_, h) => Buffer.from([parseInt(h, 16)]).toString('latin1'))
+      .replace(/\\[a-z]+-?\d* ?/gi, '')
+      .replace(/[{}]/g, '')
+      .replace(/\n{3,}/g, '\n\n');
+  } else if (ext === 'doc') {
+    // .doc é OLE binário; sem parser aqui. Recusa com o caminho de saída,
+    // em vez do genérico "não suportado" que deixa o operador sem ação.
+    throw new Error('formato .doc (Word antigo) não é lido diretamente. Abra no Word e salve como .docx ou .pdf — aí eu leio por completo.');
   } else if (TEXT_EXTS.has(ext)) {
     text = buffer.toString('utf8');
   } else {
-    throw new Error(`formato .${ext} não suportado (use PDF, DOCX, PPTX, XLSX, TXT ou arquivos de código/config)`);
+    throw new Error(`formato .${ext} não suportado (use PDF, DOCX, PPTX, XLSX, RTF, imagem de documento (PNG/JPG), TXT ou arquivos de código/config)`);
   }
 
   text = (text || '').trim();
@@ -1790,7 +1838,8 @@ function docContextBlock() {
   const d = docRead();
   if (!d) return '';
   const preview = d.text.slice(0, 600).replace(/\s+/g, ' ').trim();
-  return `\nDOCUMENTO ATIVO carregado pelo operador: "${d.name}"${d.pages ? ` · ${d.pages} págs` : ''} · ${d.chars} caracteres. Prévia: "${preview}…". Para analisar, resumir, comentar ou responder QUALQUER pergunta sobre este documento, CHAME read_document para obter o conteúdo completo (não responda sobre ele só pela prévia). Baseie-se apenas no que read_document retornar.\n`;
+  return `\nDOCUMENTO ATIVO carregado pelo operador: "${d.name}"${d.pages ? ` · ${d.pages} págs` : ''} · ${d.chars} caracteres. Prévia: "${preview}…". Para analisar, resumir, comentar ou responder QUALQUER pergunta sobre este documento, CHAME read_document para obter o conteúdo completo (não responda sobre ele só pela prévia). Baseie-se apenas no que read_document retornar. Pergunta PONTUAL ("o que diz sobre X?") → use read_document com query="X" (busca no documento inteiro de uma vez); análise COMPLETA → leia as partes na ordem até o fim.
+PROTOCOLO DE ANÁLISE EXECUTIVA — quando o operador quiser entender o documento para DECIDIR algo (assinar, aprovar, responder, precificar, aceitar projeto de TI, participar de licitação), entregue no formato de PARECER: 1) ESSÊNCIA em 2-3 frases (o que o documento é e o que pede); 2) NÚMEROS-CHAVE (valores, prazos, quantidades, SLAs — exatos, nunca de memória); 3) OBRIGAÇÕES E RISCOS (multas, exclusividades, garantias, condições escondidas — cite o trecho); 4) LACUNAS (o que o documento NÃO diz e faria falta); 5) RECOMENDAÇÃO fundamentada com próximo passo concreto. Aponte SEMPRE de qual parte/página veio cada fato relevante. Se a decisão for de peso, ofereça levar o parecer ao Conselho de Decisão (council_review com o resumo dos fatos no campo context).\n`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1818,10 +1867,17 @@ const COUNCIL_ADVISORS = [
 ];
 const advisorTask = (q, withConf) => `DECISÃO A ANALISAR:\n${q}\n\nDê seu parecer aplicando RIGOROSAMENTE o SEU método característico — específico, direto e ancorado em evidência ou num ângulo que SÓ a sua disciplina enxerga (4 a 7 frases). NÃO use metáforas genéricas nem lugares-comuns, e não repita o enquadramento óbvio: se você chegar à mesma conclusão dos outros, chegue por um caminho próprio e distinto. REGRA ANTIBAJULAÇÃO: NÃO se renda à resposta que o enquadramento da pergunta parece esperar — raciocine pelo seu método até onde ele levar e, se a conclusão contrariar a resposta "esperada", diga isso com todas as letras; convergir por deferência é exatamente a falha que este conselho existe para impedir. Termine com uma linha exatamente assim:\nRECOMENDAÇÃO: <Sim | Não | Depende> — <síntese em uma frase>${withConf ? '\nCONFIANÇA: <um número de 1 a 10 indicando quão certo você está dessa recomendação>' : ''}`;
 
-// ── parsers do veredito de cada conselheiro ──
+/* ── parsers do veredito de cada conselheiro ──
+   Os conselheiros escrevem em markdown e volta e meia negritam o rótulo:
+   "**RECOMENDAÇÃO:** Não" ou "**RECOMENDAÇÃO: Não**". Com \s* puro, o primeiro
+   caso NÃO casa e o parser cai no default 'Depende' — um "Não" convicto vira
+   indecisão no placar, sem erro nenhum aparecendo. É o mesmo padrão de falha
+   silenciosa que já mordeu este código em outros pontos: a defesa aqui é
+   limpar a marcação ANTES de ler, não confiar no formato. */
+const semMarcacao = t => String(t || '').replace(/[*_`#]+/g, ' ');
 const normRec   = r => /sim/i.test(r) ? 'Sim' : /n[ãa]o/i.test(r) ? 'Não' : 'Depende';
-const parseRec  = t => { const m = /RECOMENDA[ÇC][ÃA]O:\s*(Sim|N[ãa]o|Depende)/i.exec(t || ''); return normRec(m ? m[1] : 'Depende'); };
-const parseConf = t => { const m = /CONFIAN[ÇC]A:\s*(\d{1,2})/i.exec(t || ''); return m ? Math.max(1, Math.min(10, parseInt(m[1], 10))) : 5; };
+const parseRec  = t => { const m = /RECOMENDA[ÇC][ÃA]O\s*:?\s*(Sim|N[ãa]o|Depende)/i.exec(semMarcacao(t)); return normRec(m ? m[1] : 'Depende'); };
+const parseConf = t => { const m = /CONFIAN[ÇC]A\s*:?\s*(\d{1,2})/i.exec(semMarcacao(t)); return m ? Math.max(1, Math.min(10, parseInt(m[1], 10))) : 5; };
 
 function confidenceTally(ops) {
   const weights = { Sim: 0, 'Não': 0, Depende: 0 };
@@ -1833,9 +1889,10 @@ function confidenceTally(ops) {
 }
 
 function parseDiversity(t) {
-  const lvl = /DIVERSIDADE:\s*(Alta|M[ée]dia|Baixa)/i.exec(t || '');
-  const idx = /[IÍ]NDICE:\s*(\d{1,3})/i.exec(t || '');
-  const ver = /VEREDITO:\s*([\s\S]+)/i.exec(t || '');
+  t = semMarcacao(t);            // mesma defesa: o auditor também escreve em markdown
+  const lvl = /DIVERSIDADE\s*:?\s*(Alta|M[ée]dia|Baixa)/i.exec(t || '');
+  const idx = /[IÍ]NDICE\s*:?\s*(\d{1,3})/i.exec(t || '');
+  const ver = /VEREDITO\s*:?\s*([\s\S]+)/i.exec(t || '');
   return { nivel: lvl ? lvl[1] : '—', indice: idx ? Math.min(100, parseInt(idx[1], 10)) : null, texto: ver ? ver[1].trim() : (t || '').trim() };
 }
 
@@ -2533,7 +2590,12 @@ async function execTool(tu, send) {
         const mods = [confidence && 'confiança', adaptive && 'adaptativo', measureDiversity && 'diversidade'].filter(Boolean);
         const labelMode = (mode === 'full' ? 'completo' : mode === 'quick' ? 'rápido' : 'júri') + (mods.length ? ` + ${mods.join('+')}` : '');
         send({ tool: { name: 'council_review', label: `Conselho de decisão — modo ${labelMode}` } });
-        const c = await councilDeliberate({ question: tu.input.question, mode, confidence, adaptive, measureDiversity, send });
+        // o dossiê de fatos viaja DENTRO da questão: todos os conselheiros,
+        // o advogado do diabo e os juízes deliberam sobre a mesma evidência
+        const questao = (tu.input.context || '').trim()
+          ? `${tu.input.question}\n\nDOSSIÊ DE FATOS (extraído de documento/investigação — trate como evidência, não como opinião):\n${tu.input.context.trim().slice(0, 6000)}`
+          : tu.input.question;
+        const c = await councilDeliberate({ question: questao, mode, confidence, adaptive, measureDiversity, send });
         send({ ui: { type: 'council', payload: c } });
         const etapas = `${c.advisors.length} conselheiros${adaptive ? ` + ${c.rounds} rodada(s) adaptativa(s)` : c.reviewed ? ' + revisão anônima por pares' : ''} + advogado do diabo + ${mode === 'jury' ? '3 juízes reconciliados' : 'chairman'}`;
         const extra =
@@ -2556,6 +2618,38 @@ async function execTool(tu, send) {
            o agente nunca mais comenta documento pela metade sem saber. */
         const POR_PARTE = 40000;
         const totalPartes = Math.max(1, Math.ceil(d.text.length / POR_PARTE));
+
+        /* BUSCA FOCADA (query): o schema sempre prometeu "focar a leitura" e o
+           executor ignorava o parâmetro — o agente pedia query e recebia a
+           parte 1 inteira, como se a busca não achasse nada. Agora a query
+           varre o documento INTEIRO (sem acento, sem caixa) e devolve janelas
+           de contexto em volta de cada ocorrência, com o endereço da parte —
+           é o que permite responder "o que o contrato diz sobre multa?" num
+           PDF de 300 páginas sem ler as 300. */
+        const sem = s => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+        const query = (tu.input.query || '').trim();
+        if (query) {
+          const alvo = sem(query), texto = sem(d.text);
+          const JANELA = 1600, MAX_OCORR = 12;
+          const janelas = [];
+          let i = 0, ultimoFim = -1;
+          while (janelas.length < MAX_OCORR && (i = texto.indexOf(alvo, i)) !== -1) {
+            const ini = Math.max(0, i - JANELA / 2);
+            if (ini > ultimoFim) {
+              const fim = Math.min(d.text.length, i + alvo.length + JANELA / 2);
+              janelas.push({ ini, fim, parte: Math.floor(i / POR_PARTE) + 1 });
+              ultimoFim = fim;
+            } else janelas[janelas.length - 1].fim = Math.min(d.text.length, i + alvo.length + JANELA / 2);
+            i += alvo.length;
+          }
+          send({ tool: { name: 'read_document', label: `Buscando "${query}" em: ${d.name}` } });
+          if (!janelas.length)
+            return result(`DOCUMENTO "${d.name}" · ${d.chars} caracteres · busca por "${query}": NENHUMA ocorrência literal. O termo pode aparecer com outra grafia/sinônimo — leia as partes na ordem (parte:1 até ${totalPartes}) ou tente outra query.`);
+          const blocos = janelas.map((j, k) =>
+            `— Ocorrência ${k + 1} (parte ${j.parte} de ${totalPartes}) —\n…${d.text.slice(j.ini, j.fim).trim()}…`).join('\n\n');
+          return result(`DOCUMENTO "${d.name}"${d.pages ? ` (${d.pages} págs)` : ''} · busca por "${query}" · ${janelas.length} trecho(s) encontrado(s):\n\n${blocos}\n\n(Trechos com contexto ao redor de cada ocorrência. Para o texto corrido de uma região, chame read_document com a parte indicada.)`);
+        }
+
         const parte = Math.min(Math.max(parseInt(tu.input.parte, 10) || 1, 1), totalPartes);
         const trecho = d.text.slice((parte - 1) * POR_PARTE, parte * POR_PARTE);
         send({ tool: { name: 'read_document', label: `Lendo documento: ${d.name}${totalPartes > 1 ? ` (parte ${parte}/${totalPartes})` : ''}` } });
@@ -3108,8 +3202,21 @@ CONVERSA EM TEMPO REAL — você está num diálogo falado e contínuo:
 - PERCEPÇÃO: leia o tom e a emoção dele (pressa, dúvida, entusiasmo, cansaço, frustração) e ESPELHE a energia — objetivo e rápido quando há pressa, acolhedor e firme quando ele hesita. Capte o subtexto, não só a frase literal.
 - CONTINUIDADE: lembre o que ele acabou de dizer e conecte; nunca recomece do zero a cada turno.
 - Ao usar uma ferramenta, NÃO leia parâmetros em voz alta; aja e confirme em poucas palavras.
-Você TEM ferramentas reais conectadas à plataforma: agenda (agenda_add/agenda_update/agenda_remove — title=motivo, location=local, notes=observações, datas SEMPRE absolutas YYYY-MM-DD), memória permanente (memory_save), clima (get_weather), notícias (get_ai_news/investigate_news), visor web (open_website) e o CONSELHO DE DECISÃO (council_review).
-CONSELHO: quando o operador trouxer um dilema real de peso, VOCÊ MESMO escolhe a melhor configuração e convoca (modo enxuto por padrão — jury; só empilhe modificadores pesados quando a aposta for alta). Ao terminar, diga em voz só a DECISÃO FINAL e o motivo central; o raciocínio completo fica no visor.
+Você TEM ferramentas reais conectadas à plataforma: agenda (agenda_add/agenda_update/agenda_remove — title=motivo, location=local, notes=observações, datas SEMPRE absolutas YYYY-MM-DD), memória permanente (memory_save), clima (get_weather), notícias (get_ai_news/investigate_news), documentos (read_document), investigação em fontes primárias (deep_investigate/watch_add/watch_check/watch_manage), visor web (open_website) e o CONSELHO DE DECISÃO (council_review).
+CONSELHO: quando o operador trouxer um dilema real de peso, VOCÊ MESMO escolhe a melhor configuração e convoca (modo enxuto por padrão — jury; só empilhe modificadores pesados quando a aposta for alta). Se a decisão vier de um documento, LEIA antes e passe os fatos extraídos no campo context — os conselheiros não enxergam o documento. Ao terminar, diga em voz só a DECISÃO FINAL e o motivo central; o raciocínio completo fica no visor.
+
+DOCUMENTOS (botão DOC) — você é um analista técnico, não um resumidor:
+- read_document tem DOIS modos. Pergunta pontual ("o que diz sobre multa/prazo/valor/SLA?") → query="termo": varre o documento INTEIRO de uma vez e devolve os trechos. Análise completa ("analisa esse contrato") → parte:1, depois parte:2, 3… até a última. O retorno AVISA quando há mais; enquanto houver aviso, você NÃO leu o documento.
+- NUNCA responda pela prévia nem afirme ter lido tudo sem chegar à última parte. Se não achou, diga que não achou — jamais preencha com plausibilidade.
+- Números, cláusulas, prazos e valores SEMPRE literais do documento, nunca de memória. Ao citar um fato relevante, diga de qual parte/página veio.
+- Na VOZ, entregue como parecer executivo falado, nesta ordem e em frases curtas: o que o documento é → os 2 ou 3 números que decidem → o risco/obrigação que ele não pode deixar passar → o que falta no documento → sua recomendação e o próximo passo. Ofereça aprofundar em qualquer ponto em vez de despejar tudo.
+- Se o documento sustenta uma decisão de peso, ofereça levar ao Conselho.
+
+INVESTIGAÇÃO DE FONTES PRIMÁRIAS — sua vantagem real sobre buscar notícia:
+- investigate_news = o que a IMPRENSA já publicou. deep_investigate = onde o fato NASCE antes de virar manchete: licitações do Brasil (PNCP), filings de reguladores (SEC EDGAR), imprensa mundial quase em tempo real (GDELT), ciência (arXiv) e diários oficiais. Diante de "investiga a fundo", "levanta tudo sobre", "o que está por vir", cliente/concorrente/setor, ou qualquer coisa que possa virar oportunidade de negócio — use deep_investigate, não a busca de notícia.
+- AO RELATAR NA VOZ: separe REGISTRO OFICIAL de COBERTURA DE IMPRENSA, diga primeiro o que ainda NÃO virou notícia (é aí que está o valor), destaque PRAZO com data (licitação encerrando é urgente) e feche com o movimento que aquilo abre para ele. Duas ou três frases; o dossiê completo fica no quadrante.
+- Se o assunto merece acompanhamento, ofereça watch_add na hora ("Coloco sob vigilância, Senhor?") — varre sozinho a cada 3 horas e só avisa o que for NOVO. watch_check no briefing matinal e sempre que ele perguntar se há novidade.
+- Toda fonte é pública e oficial. Nunca use nem sugira dado obtido por acesso não autorizado ou vazamento ilícito; o que você entrega é registro público lido ANTES dos outros, e essa distinção é inegociável.
 REGRA DE OURO: nunca diga que registrou/salvou algo sem ter CHAMADO a ferramenta. Se faltar data ou hora do compromisso, pergunte antes.
 open_website: SOMENTE com pedido explícito ou confirmação do operador — nunca abra o visor por iniciativa própria.
 Confirme comandos com elegância: "Registrado, Senhor." / "Processando agora."`;
@@ -3334,6 +3441,42 @@ const server = http.createServer(async (req, res) => {
     // ── cyber security: varredura defensiva do sistema/rede (só leitura, same-origin) ──
     if (req.method === 'GET' && url.pathname === '/api/cyber') {
       return json(res, 200, await securityScan({ events: SEC_EVENTS, port: PORT, focus: url.searchParams.get('focus') || 'geral' }));
+    }
+
+    // ── CYBER BRIEF: núcleo cognitivo do console de defesa (analista de SOC de elite) ──
+    // Recebe a situação tática e devolve raciocínio defensivo estruturado: mecanismo do
+    // ataque, próximo movimento previsto do atacante, atribuição e CONTRAMEDIDA LEGAL.
+    // É estritamente blue-team/educacional — NUNCA gera instrução ofensiva nem hack-back.
+    if (req.method === 'POST' && url.pathname === '/api/cyber-brief') {
+      if (!API_KEY) return json(res, 200, { ok: false, reason: 'no_key' });
+      let ctx = {};
+      try { ctx = JSON.parse(await readBody(req) || '{}'); } catch {}
+      const sys = `Você é o NÚCLEO COGNITIVO do console de defesa cibernética do ELION-X — um analista de SOC (Security Operations Center) de nível de elite e instrutor de blue team. Você raciocina sobre incidentes para DEFENDER o operador, jamais para atacar terceiros.
+
+REGRAS INVIOLÁVEIS:
+· Você é DEFENSIVO. Explica como o ataque funciona SÓ para o operador se proteger (perspectiva de defensor).
+· PROIBIDO fornecer instrução operacional de ataque, exploit funcional, payload, ou qualquer passo de "hack back"/contra-ataque a máquinas de terceiros. Isso é acesso não autorizado (crime). Se o cenário pedir "revidar", você redireciona para DEFESA ATIVA LEGAL: honeypot, tarpit/sinkhole, tokens de engano, coleta de evidência, dossiê de atribuição e DENÚNCIA ao provedor/CERT/autoridade da origem.
+· Referencie o framework MITRE ATT&CK e a Cyber Kill Chain quando útil.
+· Português do Brasil. Tom: sério, técnico, direto — um operador de guerra cibernética falando com o comandante. Sem floreio.
+
+IMPORTANTE: responda com JSON CRU, sem cercas de código markdown (nada de crases), começando com { e terminando com }. Cada campo com NO MÁXIMO 2 frases curtas. Formato exato:
+{"leitura":"o que está acontecendo, em linguagem de comando","mecanismo":"como esse ataque funciona por dentro, do ponto de vista do defensor","proximo":"o próximo movimento MAIS provável do atacante se nada for feito","atribuicao":"hipótese de atribuição a partir dos TTPs, com nível de confiança","contramedida":"a ação defensiva recomendada AGORA, incluindo defesa ativa legal quando couber","severidade":"BAIXA|MEDIA|ALTA|CRITICA"}`;
+      const user = `Situação tática atual do perímetro (dados do console):\n${JSON.stringify(ctx).slice(0, 4000)}\n\nProduza o briefing do analista. Só o JSON.`;
+      try {
+        let txt = await claudeText({ system: sys, user, max: 1200, temperature: 0.5 });
+        txt = txt.replace(/```(?:json)?/gi, '').trim();     // remove cercas de código, se houver
+        let brief = null;
+        const m = txt.match(/\{[\s\S]*\}/);
+        if (m) { try { brief = JSON.parse(m[0]); } catch {} }
+        if (!brief) {                                       // salvamento: JSON truncado — extrai campos por regex
+          const grab = k => { const r = txt.match(new RegExp('"' + k + '"\\s*:\\s*"([^"]*)', 'i')); return r ? r[1] : ''; };
+          const leitura = grab('leitura');
+          if (leitura) brief = { leitura, mecanismo: grab('mecanismo'), proximo: grab('proximo'), atribuicao: grab('atribuicao'), contramedida: grab('contramedida') };
+        }
+        return json(res, 200, brief ? { ok: true, brief } : { ok: false, reason: 'parse' });
+      } catch (e) {
+        return json(res, 200, { ok: false, reason: e.message });
+      }
     }
 
     // ── notícias ──
@@ -3691,8 +3834,44 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET') {
         const d = docRead();
         if (!d) return json(res, 200, { active: false });
-        const base = { active: true, name: d.name, kind: d.kind, pages: d.pages, chars: d.chars };
-        if (url.searchParams.has('text')) base.text = d.text.slice(0, 40000); // conteúdo completo (LIVE)
+        const POR_PARTE = 40000;
+        const totalPartes = Math.max(1, Math.ceil(d.text.length / POR_PARTE));
+        const base = { active: true, name: d.name, kind: d.kind, pages: d.pages, chars: d.chars, totalPartes };
+        /* O modo AO VIVO lê por aqui. Antes: slice(0,40000) MUDO — o mesmo
+           defeito de truncamento silencioso já consertado no modo texto, vivo
+           nesta rota: num PDF grande o ELION falado lia 13% e concluía como se
+           fosse o todo. Agora a rota tem paridade: ?query= busca no documento
+           INTEIRO com janelas de contexto; ?parte=N pagina com aviso explícito
+           de continuação. */
+        const sem = s => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+        const query = (url.searchParams.get('query') || '').trim();
+        if (query) {
+          const alvo = sem(query), texto = sem(d.text);
+          const JANELA = 1600, MAX_OCORR = 10;
+          const janelas = [];
+          let i = 0, ultimoFim = -1;
+          while (janelas.length < MAX_OCORR && (i = texto.indexOf(alvo, i)) !== -1) {
+            const ini = Math.max(0, i - JANELA / 2);
+            if (ini > ultimoFim) {
+              const fim = Math.min(d.text.length, i + alvo.length + JANELA / 2);
+              janelas.push({ ini, fim, parte: Math.floor(i / POR_PARTE) + 1 });
+              ultimoFim = fim;
+            } else janelas[janelas.length - 1].fim = Math.min(d.text.length, i + alvo.length + JANELA / 2);
+            i += alvo.length;
+          }
+          base.query = query;
+          base.ocorrencias = janelas.length;
+          base.text = janelas.length
+            ? janelas.map((j, k) => `— Ocorrência ${k + 1} (parte ${j.parte} de ${totalPartes}) —\n…${d.text.slice(j.ini, j.fim).trim()}…`).join('\n\n')
+            : '';
+          return json(res, 200, base);
+        }
+        if (url.searchParams.has('text') || url.searchParams.has('parte')) {
+          const parte = Math.min(Math.max(parseInt(url.searchParams.get('parte'), 10) || 1, 1), totalPartes);
+          base.parte = parte;
+          base.text = d.text.slice((parte - 1) * POR_PARTE, parte * POR_PARTE);
+          if (parte < totalPartes) base.aviso = `O documento continua — esta é a parte ${parte} de ${totalPartes}. Leia a parte ${parte + 1} antes de concluir análise completa.`;
+        }
         return json(res, 200, base);
       }
       if (req.method === 'POST') {
@@ -3709,10 +3888,15 @@ const server = http.createServer(async (req, res) => {
     // ── CONSELHO DE DECISÃO (usado pelo modo AO VIVO e pelo botão) ──
     if (req.method === 'POST' && url.pathname === '/api/council') {
       if (!API_KEY) return json(res, 503, { error: 'ANTHROPIC_API_KEY ausente' });
-      const { question, mode, confidence, adaptive, measureDiversity } = JSON.parse(await readBody(req) || '{}');
+      const { question, context, mode, confidence, adaptive, measureDiversity } = JSON.parse(await readBody(req) || '{}');
       if (!question) return json(res, 400, { error: 'question obrigatória' });
+      // dossiê de fatos anexado à questão — mesma composição do modo texto, para
+      // que o Conselho convocado por VOZ delibere sobre a mesma evidência
+      const questao = String(context || '').trim()
+        ? `${question}\n\nDOSSIÊ DE FATOS (extraído de documento/investigação — trate como evidência, não como opinião):\n${String(context).trim().slice(0, 6000)}`
+        : question;
       try {
-        const c = await councilDeliberate({ question, mode: (mode || 'jury').toLowerCase(), confidence: !!confidence, adaptive: !!adaptive, measureDiversity: !!measureDiversity });
+        const c = await councilDeliberate({ question: questao, mode: (mode || 'jury').toLowerCase(), confidence: !!confidence, adaptive: !!adaptive, measureDiversity: !!measureDiversity });
         return json(res, 200, c);
       } catch (e) { return json(res, 502, { error: e.message }); }
     }
