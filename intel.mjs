@@ -228,6 +228,114 @@ export async function diariosOficiais(termo, { limite = 8, dias = 0 } = {}) {
   return [];
 }
 
+/* ── 7) CVM — FATO RELEVANTE das companhias abertas brasileiras ──────────
+   A peça que faltava. A Resolução CVM 44 obriga a companhia a comunicar o
+   fato relevante à CVM ANTES ou no mesmo instante em que informa a imprensa —
+   então este é literalmente o ponto onde o fato nasce. A SEC EDGAR, que já
+   temos, só alcança quem é registrado nos EUA: Santander Brasil, Bradesco,
+   Cielo, Algar, Vivara, Americanas e Oi não aparecem lá.
+
+   DUAS DECISÕES MEDIDAS, não estimadas:
+
+   1) SÓ "Fato Relevante", nunca "Comunicado ao Mercado". Medi a janela de 90
+      dias: 587 fatos relevantes contra 20.682 comunicados. O comunicado é
+      mangueira de incêndio e vem cheio de formulário de emissor estrangeiro
+      espelhado ("6-K", "144", "4"). Com fato relevante, a carteira inteira do
+      operador rendeu 12 documentos em 90 dias e NENHUM falso positivo — todos
+      eventos societários materiais (OPA do Santander, incorporação da
+      Fibrasil, alienação da operação de IoT da Algar).
+
+   2) UMA requisição serve a TODOS os alvos. A consulta sem filtro de empresa
+      devolve a janela inteira em ~40ms; filtrar por nome em memória é de
+      graça. Consultar empresa por empresa exigiria mapear cada alvo ao código
+      CVM de 6 dígitos — e com ',2103' em vez de ',021032' a resposta volta
+      VAZIA com HTTP 200, que é o tipo de armadilha que vira "nada novo". */
+const CVM_URL = 'https://www.rad.cvm.gov.br/ENETWeb/frmConsultaExternaCVM.aspx';
+let cvmCache = { em: 0, dias: 0, docs: [] };
+
+const dataBR = d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+async function cvmJanela(dias) {
+  const agora = Date.now();
+  // 10 min de cache: uma varredura de 40 alvos faz 1 chamada, não 40
+  if (cvmCache.docs.length && cvmCache.dias >= dias && agora - cvmCache.em < 600000) return cvmCache.docs;
+  const hoje = new Date();
+  const r = await fetch(CVM_URL + '/ListarDocumentos', {
+    method: 'POST',
+    headers: { 'User-Agent': UA_NAV, 'Content-Type': 'application/json; charset=utf-8', Referer: CVM_URL },
+    body: JSON.stringify({
+      dataDe: dataBR(new Date(agora - dias * 86400000)), dataAte: dataBR(hoje),
+      empresa: '', setorAtividade: '-1', categoriaEmissor: '-1', situacaoEmissor: '-1',
+      tipoParticipante: '-1', dataReferencia: '', categoria: 'IPE_4_-1_-1', periodo: '2',
+      horaIni: '', horaFim: '', palavraChave: '', ultimaDtRef: 'false', tipoEmpresa: '0',
+      // token e versaoCaptcha são obrigatórios MESMO vazios: sem eles vem HTTP 500
+      token: '', versaoCaptcha: '',
+    }),
+    signal: t(30000),
+  });
+  if (!r.ok) throw new Error(`CVM respondeu HTTP ${r.status}`);
+  const j = await r.json();
+  const d = j?.d;
+  // erro explícito em vez de lista vazia: se a CVM religar o captcha, isso tem
+  // de aparecer no log, não virar um silencioso "nenhuma novidade"
+  if (!d || d.temErro) throw new Error('CVM recusou a consulta: ' + (d?.msgErro || 'sem detalhe') + ' (captcha religado?)');
+  const semTag = s => String(s || '').replace(/<[^>]*>/g, '').trim();
+  const docs = String(d.dados || '').split('&*').filter(Boolean).map(linha => {
+    const c = linha.split('$&');
+    const prot = /NumeroProtocoloEntrega=(\d+)/.exec(c[10] || '');
+    return {
+      empresa: limpar(c[1]), assunto: semTag(c[4]),
+      entrega: semTag(c[6]).replace(/^\d{8}\s*/, ''),   // tira a chave de ordenação
+      protocolo: prot ? prot[1] : '',
+    };
+  }).filter(x => x.empresa);
+  cvmCache = { em: agora, dias, docs };
+  return docs;
+}
+
+/* Casamento nome comercial → razão social. Regra estrita, calibrada contra o
+   cadastro real: TODOS os tokens distintivos presentes como PALAVRA INTEIRA.
+   Sem "palavra inteira", "Mercado Livre" casa com SUPERMERCADOS e "Amazon"
+   com BCO AMAZONIA. Sem "todos os tokens", "America Net" casa com AMERICA DO
+   SUL. Alternativas de OR são avaliadas em separado, porque o operador
+   escreve alvos como "Telefônica Brasil OR Vivo Empresas". */
+const CVM_RUIDO = new Set(['BANCO','BCO','GRUPO','EMPRESAS','EMPRESA','BRASIL','BRASILEIRA','TECH','TELECOM',
+  'TELECOMUNICACOES','LTDA','PARTICIPACOES','PARTICIPACAO','HOLDING','COMPANHIA','CIA','SEGUROS','SEGURADORA',
+  'SERVICOS','SISTEMAS','SOLUCOES','INDUSTRIA','COMERCIO','NACIONAL','INTERNACIONAL','TECNOLOGIA','DIGITAL',
+  'MINISTERIO','FEDERAL','ESTADO','AGENCIA','HOSPITAL','OPERADORA','TELEFONIA','LOJAS','SUPERMERCADO']);
+const semAcento = s => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
+
+function cvmCasa(termo, razaoSocial) {
+  const palavras = new Set(semAcento(razaoSocial).split(/[^A-Z0-9]+/).filter(Boolean));
+  return String(termo).split(/\s+OR\s+/i).some(alt => {
+    const toks = semAcento(alt).split(/[^A-Z0-9]+/).filter(x => x.length >= 3 && !CVM_RUIDO.has(x));
+    return toks.length > 0 && toks.every(x => palavras.has(x));
+  });
+}
+
+export async function cvmFatosRelevantes(termo, { dias = 30, limite = 8 } = {}) {
+  const q = limpar(termo);
+  if (!q) return [];
+  try {
+    const docs = await cvmJanela(Math.max(dias, 30));
+    return docs.filter(d => cvmCasa(q, d.empresa)).slice(0, limite).map(d => ({
+      fonte: 'CVM (fato relevante)',
+      titulo: `${d.empresa} — ${d.assunto.replace(/\s*-\s*$/, '')}`,
+      orgao: d.empresa,
+      tipo: 'Fato Relevante',
+      data: d.entrega,
+      id: d.protocolo ? 'cvm:' + d.protocolo : '',
+      url: d.protocolo
+        ? `https://www.rad.cvm.gov.br/ENETWeb/frmExibirArquivoIPEExterno.aspx?NumeroProtocoloEntrega=${d.protocolo}`
+        : 'https://www.rad.cvm.gov.br/ENETWeb/frmConsultaExternaCVM.aspx',
+    }));
+  } catch (e) {
+    // barulhento de propósito: falha de fonte não pode se disfarçar de "sem novidade"
+    console.warn('[intel] CVM indisponível:', e.message);
+    return [];
+  }
+}
+
 /* ── orquestrador: dispara as fontes pertinentes em paralelo ───────────── */
 /* dias: janela de recência. 0 = tudo (investigação sob demanda, onde o
    histórico interessa). Na vigilância passamos ~10 dias, senão um diário de
@@ -249,6 +357,7 @@ export async function investigar(termo, { fontes = 'auto', uf = '', idioma = '',
   if (querem('pesquisa') && (termoEn || /^[\x20-\x7E]+$/.test(q)))
     tarefas.push(arxivPapers(termoEn || q).then(r => ['pesquisa', r]));
   if (querem('diarios'))    tarefas.push(diariosOficiais(q, { dias }).then(r => ['diarios', r]));
+  if (querem('cvm'))        tarefas.push(cvmFatosRelevantes(q, { dias: dias || 30 }).then(r => ['cvm', r]));
 
   const res = await Promise.allSettled(tarefas);
   const out = { termo: q, em: new Date().toISOString(), fontes: {} };
@@ -269,7 +378,8 @@ export function relatorio(r) {
     noticias: 'IMPRENSA (Google Notícias) — cobertura brasileira recente',
     mundo: 'IMPRENSA MUNDIAL (GDELT) — cobertura fora do eixo brasileiro',
     pesquisa: 'PESQUISA (arXiv) — o que antecede a tecnologia virar produto',
-    diarios: 'DIÁRIOS OFICIAIS — atos municipais na origem' };
+    diarios: 'DIÁRIOS OFICIAIS — atos municipais na origem',
+    cvm: 'CVM · FATO RELEVANTE — o que a companhia comunicou ANTES da imprensa' };
   if (!r.total) return `Nenhum registro encontrado nas fontes primárias para "${r.termo}". Vale tentar termos mais específicos (nome da empresa, do órgão, da tecnologia) ou ampliar o período.`;
   let s = `INVESTIGAÇÃO EM FONTES PRIMÁRIAS · "${r.termo}" · ${r.total} registro(s)\n`;
   for (const [k, itens] of Object.entries(r.fontes)) {

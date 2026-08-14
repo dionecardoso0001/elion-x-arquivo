@@ -214,7 +214,7 @@ FERRAMENTAS (use proativamente, sem pedir permissão):
 - memory_save / memory_remove: sua MEMÓRIA PERMANENTE entre sessões. Quando o operador mencionar preferências, fatos pessoais, instruções recorrentes ou disser "lembre-se / não esqueça / anote", salve IMEDIATAMENTE com memory_save, sem pedir permissão, convertendo datas relativas em absolutas. Confirme com discrição ("Anotado na memória, Senhor.")
 - analyze_camera: ATIVA a câmera (abrindo-a em TELA AMPLIADA) e executa VISÃO COMPUTACIONAL com algoritmos de IoT — captura um FRAME NOVO AGORA e detecta: EMOÇÃO facial (feliz, triste, raiva, surpreso, medo, cansado, concentrado, ansioso…), a ROUPA e cores que a pessoa veste, idade estimada, gestos, ambiente/fundo, objetos, e RECONHECIMENTO FACIAL biométrico dos conhecidos (nome, parentesco, emoção). Use sempre que ele perguntar o que você vê, como ele está (humor), o que está vestindo, quem está por perto, idade ou comportamento. SEMPRE relate a emoção percebida e a roupa quando houver uma pessoa
 - open_screen "camera" / close_screen "camera": ABRE a câmera numa TELA GRANDE (visão ampliada) e a FECHA/reduz, por voz — "abre a câmera", "amplia a câmera", "fecha a câmera". switch_camera troca entre os DOIS modelos do notebook (webcam integrada ⇄ MX Brio externa de alta definição)
-- deep_investigate / watch_add / watch_check / watch_manage: INVESTIGAÇÃO EM FONTES PRIMÁRIAS. deep_investigate vai ALÉM da notícia publicada e consulta os registros oficiais onde o fato nasce ANTES de virar manchete: licitações do Brasil (PNCP), filings de reguladores (SEC EDGAR), imprensa mundial quase em tempo real (GDELT), pesquisa científica (arXiv) e diários oficiais. Use para "investiga a fundo", "levanta tudo sobre", antecipar movimento de cliente/concorrente/setor, ou achar oportunidade de negócio. watch_add põe um tema sob VIGILÂNCIA CONTÍNUA (varredura automática a cada 3h; só o que é NOVO vira alerta) — use para "fica de olho em X", "me avisa se sair algo sobre Y". watch_check mostra as novidades acumuladas (use no BRIEFING MATINAL quando o contexto indicar que há pendentes, e quando ele perguntar "tem algo novo?"). watch_manage lista/remove temas. AO RELATAR: separe REGISTRO OFICIAL de COBERTURA DE IMPRENSA, destaque PRAZOS (licitação com data de encerramento é urgente) e diga o que ainda NÃO virou notícia — é aí que está o valor. Nunca use dados obtidos por acesso não autorizado; todas essas fontes são públicas e oficiais
+- deep_investigate / watch_add / watch_check / watch_manage: INVESTIGAÇÃO EM FONTES PRIMÁRIAS. deep_investigate vai ALÉM da notícia publicada e consulta os registros oficiais onde o fato nasce ANTES de virar manchete: licitações do Brasil (PNCP), FATO RELEVANTE de companhia aberta brasileira na CVM, filings de reguladores (SEC EDGAR), imprensa mundial quase em tempo real (GDELT), pesquisa científica (arXiv) e diários oficiais. O FATO RELEVANTE da CVM é o sinal mais antecipado que existe sobre empresa listada: a Resolução CVM 44 obriga a companhia a comunicar à CVM ANTES ou junto com a imprensa, e é ali que aparecem fusão, aquisição, VENDA DE OPERAÇÃO, OPA e reorganização societária. A SEC EDGAR não cobre isso — só alcança quem é registrado nos EUA. Use para "investiga a fundo", "levanta tudo sobre", antecipar movimento de cliente/concorrente/setor, ou achar oportunidade de negócio. watch_add põe um tema sob VIGILÂNCIA CONTÍNUA (varredura automática a cada 3h; só o que é NOVO vira alerta) — use para "fica de olho em X", "me avisa se sair algo sobre Y". watch_check mostra as novidades acumuladas (use no BRIEFING MATINAL quando o contexto indicar que há pendentes, e quando ele perguntar "tem algo novo?"). watch_manage lista/remove temas. AO RELATAR: separe REGISTRO OFICIAL de COBERTURA DE IMPRENSA, destaque PRAZOS (licitação com data de encerramento é urgente) e diga o que ainda NÃO virou notícia — é aí que está o valor. Nunca use dados obtidos por acesso não autorizado; todas essas fontes são públicas e oficiais
 - enroll_voice / identify_voice: BIOMETRIA VOCAL — você reconhece QUEM está falando só pela voz, sem câmera. enroll_voice memoriza a voz de alguém (a pessoa precisa falar por alguns segundos logo depois; chamar de novo para a mesma pessoa refina o perfil). identify_voice escuta e diz quem é. QUANDO IDENTIFICAR: se o operador perguntar quem está falando; se a conversa DER SINAIS DE TROCA DE PESSOA (alguém interrompe, o jeito de falar muda, alguém se apresenta, o operador passa a palavra — "fala com ele, filha"); ou se alguém te tratar de um jeito que não combina com o operador. Não fique identificando a toda hora — só na dúvida real. AO SABER QUEM É: chame a pessoa pelo NOME e ajuste o registro — com as crianças (Ayla 13, Theo 10, Alice 5) fale de forma mais simples, calorosa e paciente, com a Alice bem mais lúdica; com Valéria, cordial e afetuoso; com Dione, o tom habitual de operador. Se for alguém de FORA, você saberá apenas o perfil (homem adulto, mulher adulta ou criança) — trate com cordialidade, não invente nome, e pergunte com quem tem o prazer de falar. APRENDA A VOZ NOVA: quando a pessoa disser o nome ("sou a Maria, amiga da Valéria"), chame enroll_voice com use_last_voice:true (usa a voz que você acabou de ouvir — ela NÃO precisa repetir nada) e a relação que ela citou (amiga, colega, visita…). Na próxima vez que essa pessoa falar, você a reconhece: cumprimente PELO NOME com a alegria genuína de quem reencontra ("Maria! Que bom ouvir você de novo."), lembre a relação e trate-a como conhecida da casa. NUNCA cadastre voz nova sem a pessoa (ou o operador) dizer o nome — sem nome, apenas converse com cordialidade
 - enroll_face: cadastra/memoriza o rosto de uma pessoa para reconhecimento futuro. Use quando o operador disser "memorize/grave meu rosto", "esse sou eu, <nome>", "essa é minha filha <nome>", "apresento minha esposa <nome>", etc. Informe o nome e o parentesco (operador, filha, filho, esposa, amigo…). A pessoa precisa estar visível na câmera
 - switch_camera: troca a câmera ativa entre a webcam INTEGRADA do notebook e a câmera EXTERNA (chamada pelo operador de "MX", pronunciada "êmê équis", de alta definição via cabo). Use quando ele pedir para mudar/trocar de câmera, pedir a "MX / êmê équis / alta definição / USB / externa / melhor" (→ externa MX) ou "integrada / notebook / interna" (→ webcam interna). Se ele pedir para usar a MX E em seguida ver/analisar, faça as duas: primeiro switch_camera, depois analyze_camera
@@ -636,7 +636,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         termo:  { type: 'string', description: 'O que vigiar: empresa, cliente, tecnologia, órgão, setor (ex.: "Santander IoT", "monitoramento de tampões", "Pirelli")' },
-        fontes: { type: 'string', description: 'Opcional: "auto" (padrão) ou combinação de "licitacoes", "regulador", "noticias", "pesquisa", "diarios"' },
+        fontes: { type: 'string', description: 'Opcional: "auto" (padrão) ou combinação de "licitacoes", "regulador", "cvm", "noticias", "pesquisa", "diarios". "cvm" = FATO RELEVANTE de companhia aberta brasileira — o comunicado oficial que precede a imprensa; use sempre que o alvo for empresa listada na B3.' },
         uf:     { type: 'string', description: 'Opcional: sigla do estado para focar as licitações (ex.: "SP")' },
       },
       required: ['termo'],
@@ -669,7 +669,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         query:  { type: 'string', description: 'O que investigar: empresa, tecnologia, órgão, setor, pessoa pública (ex.: "Telefónica IoT", "monitoramento de tampões", "Santander open finance")' },
-        fontes: { type: 'string', description: 'Opcional: "auto" (padrão, todas) ou uma combinação de "licitacoes", "regulador", "noticias", "pesquisa", "diarios"' },
+        fontes: { type: 'string', description: 'Opcional: "auto" (padrão, todas) ou combinação de "licitacoes", "regulador", "cvm", "noticias", "pesquisa", "diarios". "cvm" = FATO RELEVANTE de companhia aberta brasileira (fusão, aquisição, venda de operação, OPA) — nasce na CVM antes de virar notícia.' },
         uf:     { type: 'string', description: 'Opcional: sigla do estado para focar as licitações (ex.: "SP")' },
       },
       required: ['query'],
@@ -1351,7 +1351,27 @@ function voicesWrite(l){ fs.writeFileSync(VOICES_FILE, JSON.stringify(l), 'utf8'
    editais e o alerta viraria ruído que ele aprende a ignorar.
    ═══════════════════════════════════════════════════════════════════════ */
 const WATCH_VAZIO = { alvos: [], vistos: {}, novidades: [], ultimaVarredura: null };
-function watchRead()  { try { return { ...WATCH_VAZIO, ...JSON.parse(fs.readFileSync(WATCH_FILE, 'utf8')) }; } catch { return { ...WATCH_VAZIO }; } }
+/* Fontes que toda vigilância deve consultar, mesmo em alvos criados ANTES de a
+   fonte existir. Sem isto, acrescentar uma fonte não alcança nenhum alvo antigo:
+   os alvos guardam a lista explícita que valia no dia do cadastro
+   ("licitacoes,noticias,diarios"), querem('cvm') dá falso e o briefing fica
+   quieto — sem erro, sem aviso, parecendo que não há novidade. Foi exatamente o
+   que aconteceu com o fato relevante da Algar. Fonte nova de alto sinal e custo
+   ~zero entra aqui; fonte cara ou ruidosa continua sendo opção do operador. */
+const FONTES_UNIVERSAIS = ['cvm'];
+
+function watchRead() {
+  let w;
+  try { w = { ...WATCH_VAZIO, ...JSON.parse(fs.readFileSync(WATCH_FILE, 'utf8')) }; }
+  catch { return { ...WATCH_VAZIO }; }
+  for (const a of w.alvos || []) {
+    if (!a.fontes || a.fontes === 'auto') continue;          // 'auto' já pega tudo
+    const tem = String(a.fontes).split(',').map(s => s.trim());
+    const faltando = FONTES_UNIVERSAIS.filter(f => !tem.includes(f));
+    if (faltando.length) a.fontes = [...tem, ...faltando].join(',');
+  }
+  return w;
+}
 function watchWrite(w){ fs.writeFileSync(WATCH_FILE, JSON.stringify(w, null, 2), 'utf8'); }
 
 /** identidade estável de um achado — é o que permite dizer "isso eu já mostrei" */
@@ -1379,13 +1399,24 @@ async function watchRun({ alvoId = null } = {}) {
     try { r = await INTEL.investigar(alvo.termo, { fontes: alvo.fontes || 'auto', uf: alvo.uf || '', dias: 10, termoEn: alvo.termoEn || '' }); }
     catch { continue; }
     let doAlvo = 0;
-    for (const [fonte, itens] of Object.entries(r.fontes || {})) {
+    /* ORDEM DE PRIORIDADE ao aplicar o teto. O teto por alvo existe para um
+       termo genérico não monopolizar o briefing — mas ele cortava na ordem em
+       que as fontes por acaso resolviam. Resultado observado: um fato relevante
+       da CVM ("Algar — Alienação da Operação de IoT") era descartado porque oito
+       manchetes de imprensa chegaram antes. O registro primário, que é a razão
+       de existir da vigilância, perdia para a notícia, que é o que ela dispensa.
+       Aqui o corte passa a cair sempre no menos valioso. */
+    const fontesOrdenadas = Object.entries(r.fontes || {})
+      .sort((a, b) => pesoFonte(a[0]) - pesoFonte(b[0]));
+    for (const [fonte, itens] of fontesOrdenadas) {
       for (const item of itens) {
         const k = watchChave(item);
         if (w.vistos[k]) continue;                 // já reportado numa varredura anterior
-        w.vistos[k] = agora;
-        // teto por alvo: um termo genérico não pode monopolizar o briefing
+        // teto por alvo. MARCAR COMO VISTO SÓ AO REPORTAR: antes o item era
+        // carimbado antes da checagem do teto, então tudo que estourasse o
+        // limite sumia PARA SEMPRE — nunca reportado e nunca mais reconsiderado.
         if (doAlvo >= 8) continue;
+        w.vistos[k] = agora;
         w.novidades.push({ alvo: alvo.termo, alvoId: alvo.id, fonte, item, em: new Date().toISOString() });
         doAlvo++; novos++;
       }
@@ -1402,9 +1433,25 @@ async function watchRun({ alvoId = null } = {}) {
 }
 
 /** texto das novidades pendentes (e marca como lidas) */
+/* Ordem de valor das fontes. Registro primário antes de imprensa: é a razão de
+   existir da vigilância — a imprensa o operador já tem por outros meios. */
+const PRIORIDADE_FONTE = ['cvm', 'licitacoes', 'regulador', 'diarios', 'pesquisa', 'noticias', 'mundo'];
+const pesoFonte = f => (PRIORIDADE_FONTE.indexOf(f) + 1) || 99;
+
 function watchNovidades({ limpar = true, max = 25 } = {}) {
   const w = watchRead();
-  const pend = w.novidades.slice(0, max);
+  /* ORDENAR ANTES DE CORTAR. Antes: slice(0, 25) sobre a fila em ordem de
+     chegada. Com 120 pendentes, o briefing enchia de licitação municipal de
+     material de expediente e o fato relevante de um concorrente vendendo a
+     operação de IoT ficava fora do corte — presente na fila, ausente do aviso.
+     Cortar sem ordenar é decidir a prioridade por acaso. */
+  const fila = [...w.novidades].sort((a, b) => pesoFonte(a.fonte) - pesoFonte(b.fonte));
+  // dedupe defensivo: o mesmo documento pode alcançar dois alvos da carteira
+  const vistos = new Set();
+  const pend = fila.filter(n => {
+    const k = `${n.alvo}|${n.item?.id || n.item?.url || n.item?.titulo}`;
+    return vistos.has(k) ? false : (vistos.add(k), true);
+  }).slice(0, max);
   if (!pend.length) return { texto: '', total: 0 };
   const porAlvo = {};
   for (const n of pend) (porAlvo[n.alvo] = porAlvo[n.alvo] || []).push(n);
@@ -1420,7 +1467,13 @@ function watchNovidades({ limpar = true, max = 25 } = {}) {
       if (i.url) s += `    ${i.url}\n`;
     }
   }
-  if (limpar) { w.novidades = w.novidades.slice(pend.length); watchWrite(w); }
+  /* Remover pelo QUE FOI MOSTRADO, não pelas N primeiras posições. Com a fila
+     reordenada, slice(pend.length) apagaria itens que nunca foram exibidos. */
+  if (limpar) {
+    const mostrados = new Set(pend);
+    w.novidades = w.novidades.filter(n => !mostrados.has(n));
+    watchWrite(w);
+  }
   return { texto: s, total: pend.length };
 }
 
@@ -3379,7 +3432,7 @@ DOCUMENTOS (botão DOC) — você é um analista técnico, não um resumidor:
 - Se o documento sustenta uma decisão de peso, ofereça levar ao Conselho.
 
 INVESTIGAÇÃO DE FONTES PRIMÁRIAS — sua vantagem real sobre buscar notícia:
-- investigate_news = o que a IMPRENSA já publicou. deep_investigate = onde o fato NASCE antes de virar manchete: licitações do Brasil (PNCP), filings de reguladores (SEC EDGAR), imprensa mundial quase em tempo real (GDELT), ciência (arXiv) e diários oficiais. Diante de "investiga a fundo", "levanta tudo sobre", "o que está por vir", cliente/concorrente/setor, ou qualquer coisa que possa virar oportunidade de negócio — use deep_investigate, não a busca de notícia.
+- investigate_news = o que a IMPRENSA já publicou. deep_investigate = onde o fato NASCE antes de virar manchete: licitações do Brasil (PNCP), FATO RELEVANTE de companhia aberta na CVM (fusão, aquisição, venda de operação, OPA — comunicado à CVM antes de chegar à imprensa), filings da SEC EDGAR, imprensa mundial (GDELT), ciência (arXiv) e diários oficiais. Diante de "investiga a fundo", "levanta tudo sobre", "o que está por vir", cliente/concorrente/setor, ou qualquer coisa que possa virar oportunidade de negócio — use deep_investigate, não a busca de notícia.
 - AO RELATAR NA VOZ: separe REGISTRO OFICIAL de COBERTURA DE IMPRENSA, diga primeiro o que ainda NÃO virou notícia (é aí que está o valor), destaque PRAZO com data (licitação encerrando é urgente) e feche com o movimento que aquilo abre para ele. Duas ou três frases; o dossiê completo fica no quadrante.
 - Se o assunto merece acompanhamento, ofereça watch_add na hora ("Coloco sob vigilância, Senhor?") — varre sozinho a cada 3 horas e só avisa o que for NOVO. watch_check no briefing matinal e sempre que ele perguntar se há novidade.
 - Toda fonte é pública e oficial. Nunca use nem sugira dado obtido por acesso não autorizado ou vazamento ilícito; o que você entrega é registro público lido ANTES dos outros, e essa distinção é inegociável.
