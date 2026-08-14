@@ -279,6 +279,13 @@ async function cvmJanela(dias) {
   // erro explícito em vez de lista vazia: se a CVM religar o captcha, isso tem
   // de aparecer no log, não virar um silencioso "nenhuma novidade"
   if (!d || d.temErro) throw new Error('CVM recusou a consulta: ' + (d?.msgErro || 'sem detalhe') + ' (captcha religado?)');
+  /* ARMADILHA CONFIRMADA: parâmetro inválido devolve HTTP 200, temErro=false,
+     msgErro vazio e dados="" — 152 bytes de silêncio. Um erro de query fica
+     idêntico a "nada aconteceu no mercado". Como consultamos a JANELA INTEIRA
+     sem filtro de empresa, vazio é impossível na prática: o mercado brasileiro
+     produz ~6 fatos relevantes por dia. Vazio aqui significa consulta quebrada. */
+  if (!String(d.dados || '').trim())
+    throw new Error('CVM devolveu lista vazia para a janela inteira — consulta provavelmente inválida, não ausência de fatos');
   const semTag = s => String(s || '').replace(/<[^>]*>/g, '').trim();
   const docs = String(d.dados || '').split('&*').filter(Boolean).map(linha => {
     const c = linha.split('$&');
@@ -336,6 +343,125 @@ export async function cvmFatosRelevantes(termo, { dias = 30, limite = 8 } = {}) 
   }
 }
 
+/* ── 8) DOU — Diário Oficial da União ────────────────────────────────────
+   O Querido Diário, que já temos, para nos diários MUNICIPAIS e estaduais. O
+   DOU federal ficava de fora — e é onde nascem os atos da Anatel, as portarias
+   do Ministério das Comunicações e os atos da Receita Federal, três órgãos que
+   estão na carteira do operador. Publica de madrugada e já está indexado no
+   mesmo dia: é o melhor frescor entre as fontes oficiais brasileiras.
+
+   O JSON vem embutido num <script type="application/json"> — contrato não
+   documentado, mas estável. O buscador aplica STEMMING: "Telefonica" casa com
+   "telefone". Por isso o pós-filtro abaixo confere se o termo aparece MESMO no
+   texto retornado; sem ele, a busca por Telefônica devolvia só falso positivo. */
+const DOU_URL = 'https://www.in.gov.br/consulta/-/buscar/dou';
+const ddmmyyyy = d => `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+
+export async function douAtos(termo, { dias = 10, limite = 8, secoes = 'todos' } = {}) {
+  const q = limpar(termo);
+  if (!q) return [];
+  try {
+    const hoje = new Date();
+    const u = `${DOU_URL}?q=${encodeURIComponent(q)}&s=${secoes}&exactDate=personalizado` +
+      `&publishFrom=${ddmmyyyy(new Date(Date.now() - Math.max(dias, 1) * 86400000))}` +
+      `&publishTo=${ddmmyyyy(hoje)}&sortType=0`;
+    // Accept explícito: o portal já devolveu 403 sem ele em outras janelas
+    const html = await fetch(u, { headers: { 'User-Agent': UA_NAV, Accept: 'text/html,application/json' }, signal: t(25000) })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
+    const m = /<script[^>]*BuscaDouPortlet_params[^>]*>([\s\S]*?)<\/script>/i.exec(html);
+    if (!m) return [];
+    const arr = JSON.parse(m[1]).jsonArray || [];
+    /* PÓS-FILTRO contra o stemming: só passa o que traz o termo de verdade.
+       Cada palavra do termo tem de aparecer no título ou no trecho — é o que
+       separa a Telefônica da palavra "telefone". */
+    const alvos = semAcento(q).split(/[^A-Z0-9]+/).filter(x => x.length >= 4);
+    const ok = a => {
+      if (!alvos.length) return true;
+      const txt = semAcento(`${a.title || ''} ${a.content || ''}`);
+      return alvos.every(x => txt.includes(x));
+    };
+    return arr.filter(ok).slice(0, limite).map(a => ({
+      fonte: `DOU ${a.pubName || ''} (${a.artType || 'ato'})`,
+      titulo: limpar(a.title).slice(0, 200),
+      orgao: limpar(String(a.hierarchyStr || '').split('/').pop()),
+      data: a.pubDate,
+      trecho: limpar(String(a.content || '').replace(/<[^>]*>/g, '')).slice(0, 220),
+      id: a.classPK ? 'dou:' + a.classPK : '',
+      url: a.urlTitle ? `https://www.in.gov.br/web/dou/-/${a.urlTitle}` : DOU_URL,
+    }));
+  } catch (e) {
+    console.warn('[intel] DOU indisponível:', e.message);
+    return [];
+  }
+}
+
+/* ── 9) ANATEL — consultas públicas com prazo aberto ─────────────────────
+   O setor do próprio operador. Aqui aparece, por exemplo, a reavaliação dos
+   limites de espectro POR GRUPO ECONÔMICO — que mexe na posição competitiva de
+   Vivo, Claro e TIM — enquanto a janela de contribuição ainda está aberta.
+   Isso quase nunca vira manchete.
+
+   Não há API: é OutSystems renderizado no servidor. Mas são poucas consultas
+   (2 a 3 abertas por vez), os links são estáveis por ConsultaId e a página é
+   determinista — parse de HTML resolve. Sem busca textual no portal, então o
+   casamento com o termo é feito aqui, sobre o texto já baixado. */
+const ANATEL_URL = 'https://apps.anatel.gov.br/ParticipaAnatel/ConsultasEmAndamento.aspx';
+let anatelCache = { em: 0, itens: [] };
+
+const deHtml = s => String(s || '')
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+  .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, ' ');
+
+async function anatelAbertas() {
+  if (anatelCache.itens.length && Date.now() - anatelCache.em < 1800000) return anatelCache.itens;
+  const html = await fetch(ANATEL_URL, { headers: { 'User-Agent': UA_NAV }, signal: t(40000) })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
+  const itens = [];
+  // cada consulta é uma linha de tabela iniciada pelo link com ConsultaId
+  for (const m of html.matchAll(/ConsultaId=(\d+)"[^>]*>([\s\S]*?)(?=ConsultaId=\d+"|<\/table>)/g)) {
+    const [, id, bloco] = m;
+    const txt = limpar(deHtml(bloco));
+    const titulo = (/CONSULTA P[ÚU]BLICA N[ºO°]?\s*\d+|TOMADA DE SUBS[ÍI]DIOS N[ºO°]?\s*\d+/i.exec(txt) || [''])[0];
+    // duas datas dd/mm/aaaa hh:mm:ss na linha: abertura e ENCERRAMENTO
+    const datas = [...txt.matchAll(/(\d{2}\/\d{2}\/\d{4})\s*(\d{2}:\d{2}:\d{2})/g)].map(d => `${d[1]} ${d[2]}`);
+    const ementa = limpar(txt.replace(titulo, '').split(/Respons[áa]vel:/)[0]).slice(0, 220);
+    const area = (/[ÁA]rea:\s*([A-Z0-9]+)/.exec(txt) || [, ''])[1];
+    if (!titulo && !ementa) continue;
+    itens.push({ id, titulo: titulo || 'Consulta pública', ementa, area,
+                 abertura: datas[0] || '', encerramento: datas[1] || '' });
+  }
+  anatelCache = { em: Date.now(), itens };
+  return itens;
+}
+
+/* Termos que fazem a consulta da Anatel ser relevante mesmo sem casar o nome:
+   é regulação do setor em que o operador vende, não de uma conta específica. */
+const ANATEL_SETOR = ['ANATEL', 'TELECOM', 'ESPECTRO', 'RADIOFREQUENCIA', 'SATELITE', 'HOMOLOGACAO',
+                      'IOT', 'INTERNET DAS COISAS', 'CONECTIVIDADE', '5G', 'BANDA LARGA', 'SMP'];
+
+export async function anatelConsultas(termo, { limite = 5 } = {}) {
+  const q = limpar(termo);
+  if (!q) return [];
+  try {
+    const abertas = await anatelAbertas();
+    const alvo = semAcento(q);
+    const setorial = ANATEL_SETOR.some(s => alvo.includes(s));
+    const casa = c => setorial || semAcento(`${c.titulo} ${c.ementa}`).includes(alvo);
+    return abertas.filter(casa).slice(0, limite).map(c => ({
+      fonte: 'ANATEL (consulta pública em aberto)',
+      titulo: `${c.titulo} — ${c.ementa}`,
+      orgao: c.area ? `Anatel · ${c.area}` : 'Anatel',
+      encerramento: c.encerramento,
+      data: c.abertura,
+      id: 'anatel:' + c.id,
+      url: `https://apps.anatel.gov.br/ParticipaAnatel/VisualizarTextoConsulta.aspx?TelaDeOrigem=2&ConsultaId=${c.id}`,
+    }));
+  } catch (e) {
+    console.warn('[intel] ANATEL indisponível:', e.message);
+    return [];
+  }
+}
+
 /* ── orquestrador: dispara as fontes pertinentes em paralelo ───────────── */
 /* dias: janela de recência. 0 = tudo (investigação sob demanda, onde o
    histórico interessa). Na vigilância passamos ~10 dias, senão um diário de
@@ -358,6 +484,8 @@ export async function investigar(termo, { fontes = 'auto', uf = '', idioma = '',
     tarefas.push(arxivPapers(termoEn || q).then(r => ['pesquisa', r]));
   if (querem('diarios'))    tarefas.push(diariosOficiais(q, { dias }).then(r => ['diarios', r]));
   if (querem('cvm'))        tarefas.push(cvmFatosRelevantes(q, { dias: dias || 30 }).then(r => ['cvm', r]));
+  if (querem('dou'))        tarefas.push(douAtos(q, { dias: dias || 10 }).then(r => ['dou', r]));
+  if (querem('anatel'))     tarefas.push(anatelConsultas(q).then(r => ['anatel', r]));
 
   const res = await Promise.allSettled(tarefas);
   const out = { termo: q, em: new Date().toISOString(), fontes: {} };
@@ -379,7 +507,9 @@ export function relatorio(r) {
     mundo: 'IMPRENSA MUNDIAL (GDELT) — cobertura fora do eixo brasileiro',
     pesquisa: 'PESQUISA (arXiv) — o que antecede a tecnologia virar produto',
     diarios: 'DIÁRIOS OFICIAIS — atos municipais na origem',
-    cvm: 'CVM · FATO RELEVANTE — o que a companhia comunicou ANTES da imprensa' };
+    cvm: 'CVM · FATO RELEVANTE — o que a companhia comunicou ANTES da imprensa',
+    dou: 'DIÁRIO OFICIAL DA UNIÃO — ato federal no dia em que sai',
+    anatel: 'ANATEL — consulta pública com PRAZO ABERTO para contribuir' };
   if (!r.total) return `Nenhum registro encontrado nas fontes primárias para "${r.termo}". Vale tentar termos mais específicos (nome da empresa, do órgão, da tecnologia) ou ampliar o período.`;
   let s = `INVESTIGAÇÃO EM FONTES PRIMÁRIAS · "${r.termo}" · ${r.total} registro(s)\n`;
   for (const [k, itens] of Object.entries(r.fontes)) {

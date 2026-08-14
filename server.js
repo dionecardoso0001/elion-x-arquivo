@@ -636,7 +636,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         termo:  { type: 'string', description: 'O que vigiar: empresa, cliente, tecnologia, órgão, setor (ex.: "Santander IoT", "monitoramento de tampões", "Pirelli")' },
-        fontes: { type: 'string', description: 'Opcional: "auto" (padrão) ou combinação de "licitacoes", "regulador", "cvm", "noticias", "pesquisa", "diarios". "cvm" = FATO RELEVANTE de companhia aberta brasileira — o comunicado oficial que precede a imprensa; use sempre que o alvo for empresa listada na B3.' },
+        fontes: { type: 'string', description: 'Opcional: "auto" (padrão) ou combinação de "licitacoes", "regulador", "cvm", "dou", "anatel", "noticias", "pesquisa", "diarios". "cvm" = FATO RELEVANTE de companhia aberta brasileira — o comunicado oficial que precede a imprensa; use sempre que o alvo for empresa listada na B3.' },
         uf:     { type: 'string', description: 'Opcional: sigla do estado para focar as licitações (ex.: "SP")' },
       },
       required: ['termo'],
@@ -669,7 +669,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         query:  { type: 'string', description: 'O que investigar: empresa, tecnologia, órgão, setor, pessoa pública (ex.: "Telefónica IoT", "monitoramento de tampões", "Santander open finance")' },
-        fontes: { type: 'string', description: 'Opcional: "auto" (padrão, todas) ou combinação de "licitacoes", "regulador", "cvm", "noticias", "pesquisa", "diarios". "cvm" = FATO RELEVANTE de companhia aberta brasileira (fusão, aquisição, venda de operação, OPA) — nasce na CVM antes de virar notícia.' },
+        fontes: { type: 'string', description: 'Opcional: "auto" (padrão, todas) ou combinação de "licitacoes", "regulador", "cvm", "dou", "anatel", "noticias", "pesquisa", "diarios". "cvm" = FATO RELEVANTE de companhia aberta brasileira (fusão, aquisição, venda de operação, OPA) — nasce na CVM antes de virar notícia.' },
         uf:     { type: 'string', description: 'Opcional: sigla do estado para focar as licitações (ex.: "SP")' },
       },
       required: ['query'],
@@ -1358,7 +1358,7 @@ const WATCH_VAZIO = { alvos: [], vistos: {}, novidades: [], ultimaVarredura: nul
    quieto — sem erro, sem aviso, parecendo que não há novidade. Foi exatamente o
    que aconteceu com o fato relevante da Algar. Fonte nova de alto sinal e custo
    ~zero entra aqui; fonte cara ou ruidosa continua sendo opção do operador. */
-const FONTES_UNIVERSAIS = ['cvm'];
+const FONTES_UNIVERSAIS = ['cvm', 'dou', 'anatel'];
 
 function watchRead() {
   let w;
@@ -1435,7 +1435,7 @@ async function watchRun({ alvoId = null } = {}) {
 /** texto das novidades pendentes (e marca como lidas) */
 /* Ordem de valor das fontes. Registro primário antes de imprensa: é a razão de
    existir da vigilância — a imprensa o operador já tem por outros meios. */
-const PRIORIDADE_FONTE = ['cvm', 'licitacoes', 'regulador', 'diarios', 'pesquisa', 'noticias', 'mundo'];
+const PRIORIDADE_FONTE = ['cvm', 'anatel', 'licitacoes', 'regulador', 'dou', 'diarios', 'pesquisa', 'noticias', 'mundo'];
 const pesoFonte = f => (PRIORIDADE_FONTE.indexOf(f) + 1) || 99;
 
 function watchNovidades({ limpar = true, max = 25 } = {}) {
