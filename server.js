@@ -2413,19 +2413,51 @@ async function edgeTTS(text, opts = {}, onChunk) {
   }
 }
 
-// ── Fallbacks TTS ────────────────────────────────────────────────────────────
-async function openaiTTS(text) {
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOZ DO CANAL DO MICROFONE
+
+   O timbre é 'fable' e a entrega é a de um profeta velho — escolha do operador,
+   feita de ouvido entre 24 amostras. As duas coisas são igualmente decisivas:
+   a MESMA voz com direção contida e com direção profética soa como dois atores
+   diferentes. Por isso a direção mora aqui, editável, e não escondida no código.
+
+   Por que este motor virou o principal, e não mais a reserva: medi o primeiro
+   byte de áudio em 891 ms contra 1.753 ms do Edge com a voz nativa pt-BR. A
+   OpenAI transmite progressivamente (132 pedaços na medição) — não era o caso
+   na implementação antiga, que esperava o arquivo inteiro com arrayBuffer() e
+   por isso PARECIA lenta. A voz melhor é também a mais rápida; não há troca.
+
+   O Edge continua atrás como reserva: é grátis e não depende de chave, então
+   se a OpenAI cair o ELION continua falando. */
+const TTS_VOZ = process.env.TTS_VOICE || 'fable';
+const TTS_DIRECAO = process.env.TTS_DIRECAO ||
+  'Voz de homem idoso e sábio, profunda e ressonante, como um profeta ou oráculo antigo. ' +
+  'Fale MUITO devagar, com peso em cada palavra. Pausas longas e deliberadas entre as frases — ' +
+  'o silêncio carrega tanto quanto a fala. Tom grave, quase sussurrado nos momentos de maior peso, ' +
+  'mas sempre firme e inabalável. Serenidade de quem enxerga além do presente e não tem pressa nenhuma. ' +
+  'Nada de entusiasmo, nada de locutor, nada de vendedor. Português do Brasil.';
+
+/** OpenAI TTS. Com onChunk, entrega os pedaços à medida que chegam (conversa);
+    sem onChunk, devolve o buffer completo (uso como reserva). */
+async function openaiTTS(text, onChunk) {
   const r = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-4o-mini-tts', voice: 'onyx', input: text, response_format: 'mp3',
-      instructions: 'Fale em português brasileiro. Voz masculina grave, calma, enigmática e pausada — tom de suspense cinematográfico, como uma inteligência artificial sofisticada. Levemente teatral, nunca apressado.',
+      model: 'gpt-4o-mini-tts', voice: TTS_VOZ, input: text,
+      response_format: 'mp3', instructions: TTS_DIRECAO,
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(45000),
   });
   if (!r.ok) throw new Error(`OpenAI TTS HTTP ${r.status}`);
-  return Buffer.from(await r.arrayBuffer());
+  if (!onChunk) return Buffer.from(await r.arrayBuffer());
+  const partes = [];
+  for await (const pedaco of r.body) {
+    const b = Buffer.from(pedaco);
+    partes.push(b);
+    onChunk(b);
+  }
+  return Buffer.concat(partes);
 }
 
 async function elevenTTS(text) {
@@ -2463,37 +2495,61 @@ async function handleTTS(res, { text, voice, rate, pitch }) {
   if (rate)  opts.rate  = rate;
   if (pitch) opts.pitch = pitch;
 
-  const key = crypto.createHash('md5').update(JSON.stringify([clean, opts.voice, opts.rate, opts.pitch])).digest('hex');
+  /* A voz e a DIREÇÃO da OpenAI entram na chave. Sem elas, trocar TTS_VOICE ou
+     afinar a interpretação no .env não teria efeito nenhum nas frases já
+     faladas: o cache continuaria servindo o áudio da voz antiga, e pareceria
+     que a configuração foi ignorada. */
+  const key = crypto.createHash('md5')
+    .update(JSON.stringify([clean, opts.voice, opts.rate, opts.pitch, TTS_VOZ, TTS_DIRECAO]))
+    .digest('hex');
   if (ttsCache.has(key)) {
     const audio = ttsCache.get(key);
     res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': audio.length, 'X-TTS-Engine': 'cache', 'Cache-Control': 'no-store' });
     return res.end(audio);
   }
 
-  // 1) Edge — chunks enviados ao navegador assim que chegam da Microsoft
-  // (escritas blindadas: o operador pode abortar o download no meio via barge-in)
+  /* Escritas blindadas em try: o operador pode cortar a fala no meio (barge-in)
+     e o socket morre embaixo de nós — erro aqui não pode derrubar a resposta. */
+  const abre = motor => { if (!res.headersSent) res.writeHead(200, {
+    'Content-Type': 'audio/mpeg', 'X-TTS-Engine': motor, 'Cache-Control': 'no-store' }); };
+
+  /* Ordem dos motores: a voz escolhida pelo operador vem PRIMEIRO. Se o
+     operador pediu uma voz específica do Edge na chamada (opts.voice), ele
+     manda — é o caso das amostras e de quem quiser o timbre nativo pt-BR. */
+  const preferido = !opts.voice && OPENAI_KEY ? 'openai' : 'edge';
+
+  if (preferido === 'openai') {
+    try {
+      const full = await openaiTTS(clean, chunk => {
+        try { abre('openai'); res.write(chunk); } catch {}
+      });
+      try { abre('openai'); res.end(); } catch {}
+      if (full?.length > 800) ttsCachePut(key, full);
+      return;
+    } catch (e) {
+      console.warn('[tts] openai falhou:', e.message);
+      // stream já começou: não dá para trocar de motor no meio do áudio
+      if (res.headersSent) { try { res.end(); } catch {} return; }
+    }
+  }
+
+  // Edge — grátis e sem chave: é a rede de segurança quando a OpenAI cai
   try {
     const full = await edgeTTS(clean, opts, chunk => {
-      try {
-        if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'X-TTS-Engine': 'edge', 'Cache-Control': 'no-store' });
-        res.write(chunk);
-      } catch {}
+      try { abre('edge'); res.write(chunk); } catch {}
     });
-    try {
-      if (!res.headersSent) res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'X-TTS-Engine': 'edge', 'Cache-Control': 'no-store' });
-      res.end();
-    } catch {}
+    try { abre('edge'); res.end(); } catch {}
     if (full?.length > 800) ttsCachePut(key, full);
     return;
   } catch (e) {
     console.warn('[tts] edge falhou:', e.message);
-    if (res.headersSent) { try { res.end(); } catch {} return; } // stream já iniciado — encerra sem fallback
+    if (res.headersSent) { try { res.end(); } catch {} return; }
   }
 
-  // 2) Fallbacks bufferizados
+  // Últimos recursos, bufferizados
   const engines = [
     ...(ELEVEN_KEY ? [['elevenlabs', () => elevenTTS(clean)]] : []),
-    ...(OPENAI_KEY ? [['openai', () => openaiTTS(clean)]] : []),
+    ...(preferido === 'edge' && OPENAI_KEY ? [['openai', () => openaiTTS(clean)]] : []),
   ];
   let lastErr = new Error('nenhum motor TTS disponível');
   for (const [name, fn] of engines) {
