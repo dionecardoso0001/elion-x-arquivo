@@ -35,6 +35,12 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
 body {
+  /* coluna flex: topbar / layout / dock. #layout absorve o espaço que sobra
+     (flex:1, ver abaixo) em vez de depender de um calc() com --dock-h fixo —
+     antes, se o dock crescesse (mais botões de acesso rápido), a altura do
+     dock real destoava da reservada e o excesso era cortado por overflow:
+     hidden, sem rolagem nem aviso. Era aí que os botões "desapareciam". */
+  display: flex; flex-direction: column;
   background:
     radial-gradient(1100px 700px at 50% 38%, rgba(0, 90, 140, 0.16), transparent 60%),
     radial-gradient(800px 500px at 85% 90%, rgba(0, 255, 157, 0.05), transparent 55%),
@@ -122,7 +128,7 @@ body {
 
 /* ═════════════════ TOPBAR ═════════════════ */
 #topbar {
-  position: relative; z-index: 10; height: var(--top-h);
+  position: relative; z-index: 10; height: var(--top-h); flex: none;
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 22px; gap: 16px;
   background: linear-gradient(180deg, rgba(2, 14, 28, 0.92), rgba(2, 14, 28, 0.55));
@@ -188,7 +194,10 @@ body {
   position: relative; z-index: 5;
   display: grid; grid-template-columns: 332px 1fr 352px;
   gap: 14px; padding: 14px 16px;
-  height: calc(100vh - var(--top-h) - var(--dock-h));
+  /* preenche o que sobrar entre topbar e dock — não precisa mais saber a
+     altura exata do dock, então o dock pode crescer (2ª linha de botões)
+     sem sobrepor nem cortar nada */
+  flex: 1 1 auto; min-height: 0;
 }
 .col { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .col .quad { flex: 1 1 0; min-height: 0; }
@@ -551,8 +560,9 @@ body {
 
 /* ═════════════════ DOCK ═════════════════ */
 #dock {
-  position: relative; z-index: 10; height: var(--dock-h);
-  display: flex; align-items: center; gap: 12px; padding: 0 18px;
+  position: relative; z-index: 10; flex: none; min-height: var(--dock-h);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 12px;
+  padding: 10px 18px;
   background: linear-gradient(0deg, rgba(2, 14, 28, 0.95), rgba(2, 14, 28, 0.6));
   border-top: 1px solid var(--border-dim); backdrop-filter: blur(12px);
 }
@@ -571,7 +581,7 @@ body {
 #liveBtn:hover { background: var(--cyan-dim); }
 #liveBtn.on { background: rgba(255,42,74,.12); border-color: var(--red); color: var(--red); box-shadow: 0 0 22px rgba(255,42,74,.4); animation: recBlink 1.4s infinite; }
 .cmd-wrap {
-  flex: 1; display: flex; align-items: center; gap: 10px; height: 42px;
+  flex: 1 1 220px; min-width: 0; display: flex; align-items: center; gap: 10px; height: 42px;
   background: rgba(0, 16, 30, 0.8); border: 1px solid var(--border-dim); border-radius: 6px; padding: 0 14px;
   transition: border .3s, box-shadow .3s;
 }
@@ -583,7 +593,16 @@ body {
 }
 #cmd::placeholder { color: var(--muted); }
 #sendBtn { width: 46px; font-size: 17px; }
-.quick { flex: none; display: flex; gap: 9px; }
+/* flex-basis:100% força a própria linha, SEMPRE — não depende de contar
+   quantos botões cabem nem de breakpoint algum. Cresça o quanto crescer
+   (mais capacidades = mais botões), a fileira de acesso rápido nunca mais
+   disputa espaço com a barra de comando: ela ganha a linha de baixo inteira.
+   flex-wrap interno é a rede de segurança: se um dia nem uma linha inteira
+   bastar, quebra para uma 2ª ao invés de cortar botão fora da tela. */
+.quick {
+  flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 9px; row-gap: 8px;
+  justify-content: center;
+}
 /* ── botões 3D com neon brilhante (cor tecnológica por botão via --acc RGB) ── */
 .qa {
   --acc: 0,229,255;

@@ -333,6 +333,25 @@
 
   ELX.agent = { send, history, interrupt };
 
+  /* ── dock: altura dinâmica ──
+     Os botões de acesso rápido agora ganham a linha de baixo inteira e
+     quebram para mais linhas se precisarem (ver .quick no CSS) — então o
+     dock deixou de ter altura fixa. --dock-h ainda é usada para posicionar
+     o Visor Web flutuante logo acima do dock (bottom: calc(--dock-h + 16px));
+     sem manter essa variável sincronizada com a altura REAL, o visor ficaria
+     encostado no dock ou flutuando com um vão, sempre que a fileira de
+     botões precisasse de mais de uma linha. */
+  const dockEl = $('dock');
+  if (dockEl) {
+    const syncDockH = () => document.documentElement.style.setProperty('--dock-h', dockEl.offsetHeight + 'px');
+    new ResizeObserver(syncDockH).observe(dockEl);
+    // reforço: 'resize' da window cobre o caso raro de o navegador suspender
+    // ResizeObserver com a aba em segundo plano — custa nada, redundante na
+    // maioria dos casos, mas fecha a lacuna quando ela existir
+    addEventListener('resize', syncDockH);
+    syncDockH();
+  }
+
   /* ── entrada ── */
   $('sendBtn').onclick = () => { const t = cmd.value; cmd.value = ''; send(t); };
   cmd.addEventListener('keydown', e => {
