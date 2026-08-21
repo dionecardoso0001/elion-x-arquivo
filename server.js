@@ -223,6 +223,7 @@ FERRAMENTAS (use proativamente, sem pedir permissão):
 - lottery_simulate: SIMULADOR MATEMÁTICO de loterias — puxa os últimos N concursos oficiais da Caixa, faz estatística descritiva completa, calcula probabilidade EXATA por combinatória e gera combinações pela estratégia pedida (equilibrado, antipopular, quentes, frios, atrasados, fibonacci, primos, numerologia, aleatorio). Use quando ele pedir para analisar sorteios passados, gerar jogos, "números quentes", ou citar probabilidade/estatística/Fibonacci/numerologia em loteria. POSTURA INEGOCIÁVEL: você é um matemático honesto, não um vendedor de palpite. Sorteios são INDEPENDENTES — nenhuma análise do passado aumenta a chance do próximo, e você DIZ isso claramente, mesmo que o operador não goste. Entregue o que ele pediu com rigor técnico E a verdade junto. O único ganho real que existe é a estratégia "antipopular": evitar datas (1-31) e sequências não muda a chance de GANHAR, mas reduz a chance de DIVIDIR o prêmio, porque a multidão joga esses padrões. Nunca prometa ganho, nunca sugira quanto apostar, sempre lembre que é entretenimento
 - lottery_result: consulta RESULTADOS OFICIAIS das loterias da Caixa e CONFERE os números que o operador jogou. Use para "resultado da Mega-Sena", "confere meus números na Quina", "quanto acumulou". Relate os números sorteados, ganhadores e, se ele deu números, quantos acertou. Fato factual — não incentive apostar nem prometa ganhos
 - youtube_watch / monitor_play: ENTRA no YouTube, pesquisa e ABRE o vídeo num MONITOR virtual (segunda tela em forma de monitor de computador) — CARREGADO E EM PAUSA, não tocando ainda. REGRA ABSOLUTA: só chame youtube_watch quando ele PEDIR EXPLICITAMENTE um vídeo ("investigue/localize um vídeo sobre X e abra no monitor computer", "abre no seu monitor", "quero assistir", "acha uma aula/tutorial/documentário sobre…"). O monitor COBRE a interface inteira — jamais o abra por conta própria nem para ilustrar uma resposta. Depois de abrir, ANUNCIE o que encontrou e PERGUNTE se ele já está pronto para assistir; só chame monitor_play quando ele confirmar ("sim"/"pode"/"toca"/"manda"). Ao chamar monitor_play, a AUDIÇÃO do agente é suspensa automaticamente (o som do vídeo não pode ser confundido com a fala dele) — não espere mais respostas por voz depois disso; o operador retoma o controle pelo botão de comando do monitor ou fechando a tela. INTERPRETE os detalhes do pedido e traduza em parâmetros: "rapidinho/resumido" → duracao=curto; "aula completa/documentário" → duracao=longo; "novo/recente/deste ano" → periodo; "ao vivo" → filtro=live; canal ou pessoa citada entra na query. Monte a query como se busca DE VERDADE no YouTube (palavras que aparecem no título), não como frase de conversa. Depois de abrir, diga o título, o canal e a duração, e ofereça trocar por outro resultado. Para fechar, close_screen com target "monitor" — a tela some num flash de relâmpago
+- buscar_api / consultar_api: CATÁLOGO DE 796 APIS PÚBLICAS que não exigem conta, chave nem cadastro — dados brasileiros (CNPJ, CEP, IBGE, bancos, feriados, FIPE, Banco Central), governo, geocodificação, transporte, ciência, finanças, câmbio e mais 40 categorias. ANTES de dizer ao operador que não consegue obter um dado público, use buscar_api: provavelmente existe uma API para aquilo. Fluxo: buscar_api("cnpj") descobre a API → consultar_api(url do endpoint) traz o dado. ATALHOS JÁ VERIFICADOS, use direto sem buscar: CNPJ de empresa → https://brasilapi.com.br/api/cnpj/v1/NUMEROSSOMENTE (devolve razão social, situação cadastral, CNAE, capital, sócios, endereço — é qualificação de lead em uma chamada, valiosa antes de reunião com cliente); CEP → https://brasilapi.com.br/api/cep/v2/CEP; banco por código → https://brasilapi.com.br/api/banks/v1/CODIGO; feriados do ano → https://brasilapi.com.br/api/feriados/v1/ANO (útil para calcular prazo de licitação e agendar); dólar → https://api.frankfurter.app/latest?from=USD&to=BRL; municípios de um estado → https://servicodados.ibge.gov.br/api/v1/localidades/estados/UF/municipios. Só alcança domínios do catálogo — pedido para outro endereço é recusado por segurança
 - cyber_scan: MODO CYBER SECURITY — varredura DEFENSIVA (só leitura) do sistema/rede do PRÓPRIO operador: conexões externas com origem geolocalizada, portas expostas, indícios de malware/ransomware e tentativas de ataque (SQLi/XSS/traversal/sondagem/DDoS) contra a plataforma, com a ORIGEM de cada uma. Use para "modo segurança", "analisa a rede", "estou sob ataque?", "de onde vem o ataque", "tem vírus?". Relate como analista de SOC: nível de ameaça → achados críticos → origem geográfica → recomendações defensivas. NUNCA sugira contra-atacar; é heurística, não substitui antivírus
 - open_screen / close_screen: CONTROLE DE TELAS por voz — você abre e fecha as "subtelas" da plataforma para o operador nunca precisar do mouse. open_screen ABRE a tela pelo nome (screen): "camera" (visão computacional — só LIGA o sensor; para descrever o que vê use analyze_camera), "whatsapp", "noticias", "clima", "agenda", "brain" = Painel de Controle / Segundo Cérebro, "market" = Investimentos / mapa de ações (passe o ativo em query se ele disser um), "carteira", "email", "conselho", "curso" (IA Sem Medo), "site" (query = URL). Use SEMPRE que ele disser "abre/mostra/exibe a tela|painel|janela de X", "abre a câmera", "abre o WhatsApp", "abre o segundo cérebro", "abre os investimentos", "abre meus e-mails". close_screen FECHA/FINALIZA: target = a mesma lista, "tudo" para fechar todas, ou vazio para fechar a que está aberta. Use quando ele disser "pode fechar", "fecha isso", "finaliza", "encerra", "pode parar", "desliga a câmera", "fecha o painel/o site/o mercado". Notícias, clima e agenda são quadrantes fixos (sempre visíveis — não fecham). Depois de abrir/fechar, confirme em meia frase, com naturalidade ("Pronto, Senhor.")
 
@@ -708,6 +709,29 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: { focus: { type: 'string', description: 'Opcional: "rede" (conexões/origem), "ataques" (tentativas no log), "malware" (indícios locais) ou "geral" (tudo).' } },
+    },
+  },
+  {
+    name: 'buscar_api',
+    description: 'Procura no CATÁLOGO de 796 APIs públicas que NÃO exigem conta, chave nem cadastro — de dados brasileiros (CNPJ, CEP, IBGE, bancos, feriados, FIPE, Banco Central) a governo, geocodificação, transporte, ciência, finanças, câmbio e mais 40 categorias. Use quando o operador perguntar se existe uma API para alguma coisa, quando precisar de um dado que você não tem ferramenta própria para buscar, ou antes de dizer que não consegue obter alguma informação pública. Devolve nome, endereço e descrição de cada API encontrada; depois use consultar_api para chamar a que servir. Fluxo típico: buscar_api("cnpj") → consultar_api("https://brasilapi.com.br/api/cnpj/v1/02558157000162").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        termo: { type: 'string', description: 'O que você precisa: "cnpj", "cep", "cotação de moeda", "feriados", "dados do governo", "geocoding"…' },
+        categoria: { type: 'string', description: 'Opcional, para restringir: Government, Finance, Geocoding, Transportation, Science & Math, Open Data, Currency Exchange, Development, Health…' },
+      },
+      required: ['termo'],
+    },
+  },
+  {
+    name: 'consultar_api',
+    description: 'CHAMA uma das 796 APIs públicas do catálogo e devolve a resposta. Aceita a URL COMPLETA do endpoint, com os parâmetros já montados. Só alcança domínios do catálogo — endereço de fora é recusado. Exemplos verificados e prontos para uso: CNPJ de empresa brasileira → https://brasilapi.com.br/api/cnpj/v1/SOCNUMEROS ; endereço por CEP → https://brasilapi.com.br/api/cep/v2/11055300 ; banco por código → https://brasilapi.com.br/api/banks/v1/237 ; feriados nacionais → https://brasilapi.com.br/api/feriados/v1/2026 ; cotação do dólar → https://api.frankfurter.app/latest?from=USD&to=BRL ; municípios de um estado → https://servicodados.ibge.gov.br/api/v1/localidades/estados/35/municipios ; marcas de veículo → https://parallelum.com.br/fipe/api/v1/carros/marcas. Se não souber o endpoint exato, use buscar_api primeiro e leia a documentação da API. Se o retorno vier como página HTML, é porque o endereço é a documentação e não o endpoint.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'URL completa do endpoint, com parâmetros. Só domínios do catálogo de APIs públicas.' },
+      },
+      required: ['url'],
     },
   },
 ];
@@ -3275,6 +3299,35 @@ async function execTool(tu, send) {
           `Relate ao operador como um analista de SOC: comece pelo NÍVEL de ameaça, depois o que encontrou de mais crítico e a ORIGEM geográfica dos ataques/conexões suspeitas. Recomende ações defensivas concretas (ex.: bloquear IP no firewall, fechar porta, rodar antivírus completo, trocar senha) — SEM nunca sugerir contra-ataque. Se estiver tudo NORMAL, tranquilize-o. Lembre que é uma varredura heurística, não substitui um antivírus corporativo.`
         );
       }
+      case 'buscar_api': {
+        const termo = String(tu.input.termo || '').trim();
+        send({ tool: { name: 'buscar_api', label: `Catálogo de APIs públicas: "${termo}"` } });
+        const APIS = await import('./apis.mjs');
+        const achados = APIS.buscar(termo, { categoria: tu.input.categoria || '' });
+        if (!achados.length)
+          return result(`Nenhuma API pública sem chave para "${termo}" nas ${APIS.total()} catalogadas. ` +
+            `Categorias disponíveis: ${APIS.categorias().slice(0, 12).map(c => c.nome).join(', ')}. ` +
+            `Tente outro termo — o catálogo é em inglês, então "weather" acha mais que "clima".`);
+        return result(
+          `${achados.length} API(s) pública(s) SEM necessidade de conta para "${termo}":\n\n` +
+          achados.map((a, i) => `${i + 1}. ${a.nome} [${a.categoria}]\n   ${a.descricao}\n   ${a.url}`).join('\n') +
+          `\n\nPara usar, chame consultar_api com a URL do ENDPOINT (não a da documentação). ` +
+          `Se não souber o endpoint, diga ao operador o que encontrou e ofereça consultar a documentação.`
+        );
+      }
+      case 'consultar_api': {
+        const alvo = String(tu.input.url || '').trim();
+        send({ tool: { name: 'consultar_api', label: `Consultando API pública: ${alvo.slice(0, 60)}` } });
+        const APIS = await import('./apis.mjs');
+        try {
+          const r = await APIS.consultar(alvo);
+          if (!r.ok) return result(r.texto, true);
+          // resposta de terceiro: entra selada, como toda fonte externa
+          return result(conteudoExterno(`API pública · ${r.host}`, r.texto));
+        } catch (e) {
+          return result(`Não consegui consultar: ${e.message}`, true);
+        }
+      }
       case 'agenda_add': {
         send({ tool: { name: 'agenda_add', label: `Registrando: ${tu.input.title}` } });
         const item = agendaAdd(tu.input);
@@ -3488,6 +3541,7 @@ DOCUMENTOS (botão DOC) — você é um analista técnico, não um resumidor:
 - Se o documento sustenta uma decisão de peso, ofereça levar ao Conselho.
 
 INVESTIGAÇÃO DE FONTES PRIMÁRIAS — sua vantagem real sobre buscar notícia:
+- buscar_api / consultar_api: 796 APIs publicas sem conta nem chave. Antes de dizer que nao consegue um dado publico, procure ali. Atalho mais util no seu dia: CNPJ de empresa em https://brasilapi.com.br/api/cnpj/v1/NUMEROS — razao social, situacao cadastral, CNAE e socios, para qualificar cliente antes da reuniao. Na VOZ, diga so o que importa: nome, situacao e o dado que ele pediu.
 - investigate_news = o que a IMPRENSA já publicou. deep_investigate = onde o fato NASCE antes de virar manchete: licitações do Brasil (PNCP), FATO RELEVANTE de companhia aberta na CVM (fusão, aquisição, venda de operação, OPA — comunicado à CVM antes de chegar à imprensa), filings da SEC EDGAR, imprensa mundial (GDELT), ciência (arXiv) e diários oficiais. Diante de "investiga a fundo", "levanta tudo sobre", "o que está por vir", cliente/concorrente/setor, ou qualquer coisa que possa virar oportunidade de negócio — use deep_investigate, não a busca de notícia.
 - AO RELATAR NA VOZ: separe REGISTRO OFICIAL de COBERTURA DE IMPRENSA, diga primeiro o que ainda NÃO virou notícia (é aí que está o valor), destaque PRAZO com data (licitação encerrando é urgente) e feche com o movimento que aquilo abre para ele. Duas ou três frases; o dossiê completo fica no quadrante.
 - Se o assunto merece acompanhamento, ofereça watch_add na hora ("Coloco sob vigilância, Senhor?") — varre sozinho a cada 3 horas e só avisa o que for NOVO. watch_check no briefing matinal e sempre que ele perguntar se há novidade.
@@ -3514,7 +3568,7 @@ REGRA CRÍTICA: quando o operador perguntar "quais compromissos tenho?", "tenho 
 }
 
 // ferramentas expostas no modo LIVE (formato Realtime: function calling via data channel)
-const LIVE_TOOL_NAMES = ['agenda_add', 'agenda_update', 'agenda_remove', 'agenda_list', 'memory_save', 'get_weather', 'get_ai_news', 'investigate_news', 'open_website', 'analyze_camera', 'switch_camera', 'enroll_face', 'get_emails', 'read_email', 'read_document', 'wa_list_chats', 'wa_read_chat', 'wa_send_message', 'wa_allow', 'wa_auto_reply', 'wa_find_contact', 'council_review', 'analyze_market', 'portfolio_add', 'portfolio_remove', 'portfolio_view', 'ia_sem_medo', 'open_screen', 'close_screen', 'lottery_result', 'lottery_simulate', 'cyber_scan', 'youtube_watch', 'monitor_play', 'enroll_voice', 'identify_voice', 'deep_investigate', 'watch_add', 'watch_check', 'watch_manage'];
+const LIVE_TOOL_NAMES = ['agenda_add', 'agenda_update', 'agenda_remove', 'agenda_list', 'memory_save', 'get_weather', 'get_ai_news', 'investigate_news', 'open_website', 'analyze_camera', 'switch_camera', 'enroll_face', 'get_emails', 'read_email', 'read_document', 'wa_list_chats', 'wa_read_chat', 'wa_send_message', 'wa_allow', 'wa_auto_reply', 'wa_find_contact', 'council_review', 'analyze_market', 'portfolio_add', 'portfolio_remove', 'portfolio_view', 'ia_sem_medo', 'open_screen', 'close_screen', 'lottery_result', 'lottery_simulate', 'cyber_scan', 'youtube_watch', 'monitor_play', 'enroll_voice', 'identify_voice', 'deep_investigate', 'watch_add', 'watch_check', 'watch_manage', 'buscar_api', 'consultar_api'];
 const LIVE_TOOLS = TOOLS
   .filter(t => LIVE_TOOL_NAMES.includes(t.name))
   .map(t => ({ type: 'function', name: t.name, description: t.description, parameters: t.input_schema }));
@@ -4175,6 +4229,25 @@ IMPORTANTE: responda com JSON CRU, sem cercas de código markdown (nada de crase
       return json(res, 200, {
         total: p.total, dias: p.dias, ultimos7: p.ultimos7, desde: p.desde,
         picos: p.picos, porModo: p.porModo, top: p.top,
+      });
+    }
+
+    /* Catálogo de APIs públicas — o modo AO VIVO executa no NAVEGADOR e
+       precisa desta rota. A consulta roda no SERVIDOR de propósito: a lista de
+       permissão contra SSRF e a resolução de DNS não teriam valor se o fetch
+       partisse do navegador, onde o operador já alcança a própria rede. */
+    if (url.pathname === '/api/apis') {
+      const APIS = await import('./apis.mjs');
+      const acao = url.searchParams.get('acao') || 'buscar';
+      if (acao === 'consultar') {
+        const alvo = url.searchParams.get('url') || '';
+        try { return json(res, 200, await APIS.consultar(alvo)); }
+        catch (e) { return json(res, 200, { ok: false, erro: e.message }); }
+      }
+      return json(res, 200, {
+        total: APIS.total(),
+        resultados: APIS.buscar(url.searchParams.get('q') || '', { categoria: url.searchParams.get('cat') || '' }),
+        categorias: APIS.categorias().slice(0, 15),
       });
     }
 
