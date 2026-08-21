@@ -53,8 +53,22 @@ async function postar(caminho, corpo) {
     signal: t(45000),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok || (j.code && j.code !== 200))
-    throw new Error(`SkyReels recusou (HTTP ${r.status}, code ${j.code ?? '?'}): ${j.msg || 'sem detalhe'}`);
+  if (!r.ok || (j.code && j.code !== 200)) {
+    /* A SkyReels devolve o motivo em `detail`, não em `msg` — e usa códigos
+       fora do comum (480 para saldo). Sem traduzir, o agente repassaria
+       "HTTP 480" ao operador, que não diz nada. Cada caso abaixo aponta a
+       AÇÃO que resolve, porque erro sem saída é o mesmo que erro mudo. */
+    const detalhe = j.detail || j.msg || '';
+    if (r.status === 480 || /insufficient credit/i.test(detalhe))
+      throw new Error('a conta SkyReels está SEM CRÉDITOS DE API. A carteira da API é separada da do editor web: ' +
+        'ter saldo no site não dá saldo aqui. O operador precisa recarregar em skyreels.ai (área de API/billing). ' +
+        'A chave dele está correta — foi aceita e autenticada.');
+    if (r.status === 401 || /AK.*不存在|not exist/i.test(detalhe))
+      throw new Error('a SkyReels não reconheceu a chave (SKYREELS_API_KEY). Confira se foi copiada inteira e sem espaços, ' +
+        'ou gere outra em skyreels.ai/dev/api-keys — a chave só aparece uma vez, no momento da criação.');
+    if (r.status === 429) throw new Error('limite de requisições da SkyReels atingido. Aguarde alguns minutos.');
+    throw new Error(`SkyReels recusou (HTTP ${r.status}): ${detalhe || 'sem detalhe'}`);
+  }
   if (!j.task_id) throw new Error(`SkyReels não devolveu task_id: ${JSON.stringify(j).slice(0, 200)}`);
   return j.task_id;
 }
