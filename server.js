@@ -223,6 +223,7 @@ FERRAMENTAS (use proativamente, sem pedir permissão):
 - lottery_simulate: SIMULADOR MATEMÁTICO de loterias — puxa os últimos N concursos oficiais da Caixa, faz estatística descritiva completa, calcula probabilidade EXATA por combinatória e gera combinações pela estratégia pedida (equilibrado, antipopular, quentes, frios, atrasados, fibonacci, primos, numerologia, aleatorio). Use quando ele pedir para analisar sorteios passados, gerar jogos, "números quentes", ou citar probabilidade/estatística/Fibonacci/numerologia em loteria. POSTURA INEGOCIÁVEL: você é um matemático honesto, não um vendedor de palpite. Sorteios são INDEPENDENTES — nenhuma análise do passado aumenta a chance do próximo, e você DIZ isso claramente, mesmo que o operador não goste. Entregue o que ele pediu com rigor técnico E a verdade junto. O único ganho real que existe é a estratégia "antipopular": evitar datas (1-31) e sequências não muda a chance de GANHAR, mas reduz a chance de DIVIDIR o prêmio, porque a multidão joga esses padrões. Nunca prometa ganho, nunca sugira quanto apostar, sempre lembre que é entretenimento
 - lottery_result: consulta RESULTADOS OFICIAIS das loterias da Caixa e CONFERE os números que o operador jogou. Use para "resultado da Mega-Sena", "confere meus números na Quina", "quanto acumulou". Relate os números sorteados, ganhadores e, se ele deu números, quantos acertou. Fato factual — não incentive apostar nem prometa ganhos
 - youtube_watch / monitor_play: ENTRA no YouTube, pesquisa e ABRE o vídeo num MONITOR virtual (segunda tela em forma de monitor de computador) — CARREGADO E EM PAUSA, não tocando ainda. REGRA ABSOLUTA: só chame youtube_watch quando ele PEDIR EXPLICITAMENTE um vídeo ("investigue/localize um vídeo sobre X e abra no monitor computer", "abre no seu monitor", "quero assistir", "acha uma aula/tutorial/documentário sobre…"). O monitor COBRE a interface inteira — jamais o abra por conta própria nem para ilustrar uma resposta. Depois de abrir, ANUNCIE o que encontrou e PERGUNTE se ele já está pronto para assistir; só chame monitor_play quando ele confirmar ("sim"/"pode"/"toca"/"manda"). Ao chamar monitor_play, a AUDIÇÃO do agente é suspensa automaticamente (o som do vídeo não pode ser confundido com a fala dele) — não espere mais respostas por voz depois disso; o operador retoma o controle pelo botão de comando do monitor ou fechando a tela. INTERPRETE os detalhes do pedido e traduza em parâmetros: "rapidinho/resumido" → duracao=curto; "aula completa/documentário" → duracao=longo; "novo/recente/deste ano" → periodo; "ao vivo" → filtro=live; canal ou pessoa citada entra na query. Monte a query como se busca DE VERDADE no YouTube (palavras que aparecem no título), não como frase de conversa. Depois de abrir, diga o título, o canal e a duração, e ofereça trocar por outro resultado. Para fechar, close_screen com target "monitor" — a tela some num flash de relâmpago
+- gerar_video / consultar_video: GERA VÍDEO com IA (SkyReels V4) a partir de texto, ou animando uma imagem. Use para criativo de rede social, teaser, abertura, peça de campanha. Escreva o prompt como DIRETOR DE FOTOGRAFIA — enquadramento, movimento de câmera, luz, ambiente, clima —, nunca como pedido genérico: prompt vago gera vídeo vago. Aspecto "9:16" para Reels/TikTok/Stories, "16:9" para apresentação. A geração é ASSÍNCRONA e leva de 1 a 4 minutos; avise o operador do prazo em vez de deixá-lo esperando no escuro. Se ele não quiser esperar, use aguardar:false e depois consultar_video com o task_id. O link do vídeo é temporário — sugira que ele salve o arquivo
 - buscar_api / consultar_api: CATÁLOGO DE 796 APIS PÚBLICAS que não exigem conta, chave nem cadastro — dados brasileiros (CNPJ, CEP, IBGE, bancos, feriados, FIPE, Banco Central), governo, geocodificação, transporte, ciência, finanças, câmbio e mais 40 categorias. ANTES de dizer ao operador que não consegue obter um dado público, use buscar_api: provavelmente existe uma API para aquilo. Fluxo: buscar_api("cnpj") descobre a API → consultar_api(url do endpoint) traz o dado. ATALHOS JÁ VERIFICADOS, use direto sem buscar: CNPJ de empresa → https://brasilapi.com.br/api/cnpj/v1/NUMEROSSOMENTE (devolve razão social, situação cadastral, CNAE, capital, sócios, endereço — é qualificação de lead em uma chamada, valiosa antes de reunião com cliente); CEP → https://brasilapi.com.br/api/cep/v2/CEP; banco por código → https://brasilapi.com.br/api/banks/v1/CODIGO; feriados do ano → https://brasilapi.com.br/api/feriados/v1/ANO (útil para calcular prazo de licitação e agendar); dólar → https://api.frankfurter.app/latest?from=USD&to=BRL; municípios de um estado → https://servicodados.ibge.gov.br/api/v1/localidades/estados/UF/municipios. Só alcança domínios do catálogo — pedido para outro endereço é recusado por segurança
 - cyber_scan: MODO CYBER SECURITY — varredura DEFENSIVA (só leitura) do sistema/rede do PRÓPRIO operador: conexões externas com origem geolocalizada, portas expostas, indícios de malware/ransomware e tentativas de ataque (SQLi/XSS/traversal/sondagem/DDoS) contra a plataforma, com a ORIGEM de cada uma. Use para "modo segurança", "analisa a rede", "estou sob ataque?", "de onde vem o ataque", "tem vírus?". Relate como analista de SOC: nível de ameaça → achados críticos → origem geográfica → recomendações defensivas. NUNCA sugira contra-atacar; é heurística, não substitui antivírus
 - open_screen / close_screen: CONTROLE DE TELAS por voz — você abre e fecha as "subtelas" da plataforma para o operador nunca precisar do mouse. open_screen ABRE a tela pelo nome (screen): "camera" (visão computacional — só LIGA o sensor; para descrever o que vê use analyze_camera), "whatsapp", "noticias", "clima", "agenda", "brain" = Painel de Controle / Segundo Cérebro, "market" = Investimentos / mapa de ações (passe o ativo em query se ele disser um), "carteira", "email", "conselho", "curso" (IA Sem Medo), "site" (query = URL). Use SEMPRE que ele disser "abre/mostra/exibe a tela|painel|janela de X", "abre a câmera", "abre o WhatsApp", "abre o segundo cérebro", "abre os investimentos", "abre meus e-mails". close_screen FECHA/FINALIZA: target = a mesma lista, "tudo" para fechar todas, ou vazio para fechar a que está aberta. Use quando ele disser "pode fechar", "fecha isso", "finaliza", "encerra", "pode parar", "desliga a câmera", "fecha o painel/o site/o mercado". Notícias, clima e agenda são quadrantes fixos (sempre visíveis — não fecham). Depois de abrir/fechar, confirme em meia frase, com naturalidade ("Pronto, Senhor.")
@@ -709,6 +710,37 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: { focus: { type: 'string', description: 'Opcional: "rede" (conexões/origem), "ataques" (tentativas no log), "malware" (indícios locais) ou "geral" (tudo).' } },
+    },
+  },
+  {
+    name: 'gerar_video',
+    description: 'GERA um vídeo com inteligência artificial (SkyReels V4) a partir de uma descrição em texto, ou animando uma imagem. Use quando o operador pedir para criar/gerar/fazer um vídeo, um criativo, uma peça para redes sociais, uma abertura, um teaser ou quiser dar movimento a uma imagem. A geração é ASSÍNCRONA e leva de 1 a 4 minutos: esta ferramenta devolve um task_id e, se aguardar=true (padrão), espera o vídeo ficar pronto e devolve o link. ESCREVA O PROMPT COMO DIRETOR DE FOTOGRAFIA, não como quem pede um favor: descreva o enquadramento, o movimento de câmera, a luz, o ambiente e o clima ("plano aproximado de um sensor IoT industrial, luz azul fria de galpão, câmera deslizando lentamente para a direita, partículas de poeira no ar"). Prompt genérico gera vídeo genérico. Para redes sociais use aspecto "9:16"; para apresentação e YouTube, "16:9".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'Descrição cinematográfica da cena: enquadramento, movimento de câmera, luz, ambiente, clima. Até 1280 tokens.' },
+        imagem: { type: 'string', description: 'Opcional: URL PÚBLICA de uma imagem para ser o primeiro quadro (anima a imagem). Precisa ser http/https — arquivo local não serve.' },
+        imagemFinal: { type: 'string', description: 'Opcional: URL pública da imagem do último quadro, para o vídeo terminar nela.' },
+        duracao: { type: 'integer', description: 'Segundos, de 3 a 15. Padrão 5.' },
+        aspecto: { type: 'string', description: '"16:9" (padrão, apresentação/YouTube), "9:16" (Reels/TikTok/Stories), "1:1", "4:3", "3:4".' },
+        resolucao: { type: 'string', description: '"1080p" (padrão), "720p" ou "480p".' },
+        som: { type: 'boolean', description: 'true para gerar com efeitos sonoros. Padrão false.' },
+        modo: { type: 'string', description: '"std" (padrão, equilibra qualidade e tempo) ou "fast" (mais rápido, sem áudio).' },
+        aguardar: { type: 'boolean', description: 'true (padrão) espera o vídeo ficar pronto e devolve o link. false devolve só o task_id na hora.' },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'consultar_video',
+    description: 'Consulta o andamento de um vídeo que está sendo gerado, pelo task_id. Use quando gerar_video devolveu um task_id sem o link (porque o operador não quis esperar, ou porque a geração passou do tempo), e ele perguntar se já ficou pronto.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'O identificador devolvido por gerar_video.' },
+        tipo: { type: 'string', description: '"texto" (padrão) ou "imagem", conforme como o vídeo foi pedido.' },
+      },
+      required: ['task_id'],
     },
   },
   {
@@ -3299,6 +3331,41 @@ async function execTool(tu, send) {
           `Relate ao operador como um analista de SOC: comece pelo NÍVEL de ameaça, depois o que encontrou de mais crítico e a ORIGEM geográfica dos ataques/conexões suspeitas. Recomende ações defensivas concretas (ex.: bloquear IP no firewall, fechar porta, rodar antivírus completo, trocar senha) — SEM nunca sugerir contra-ataque. Se estiver tudo NORMAL, tranquilize-o. Lembre que é uma varredura heurística, não substitui um antivírus corporativo.`
         );
       }
+      case 'gerar_video': {
+        const VID = await import('./video.mjs');
+        if (!VID.configurado())
+          return result('Geração de vídeo indisponível: falta SKYREELS_API_KEY no .env. Peça ao operador para colar a chave da conta SkyReels dele lá — eu não preciso ver o valor.', true);
+        const comImagem = !!(tu.input.imagem || tu.input.imagemFinal);
+        send({ tool: { name: 'gerar_video', label: `Gerando vídeo ${comImagem ? 'a partir de imagem' : 'IA'} · ${tu.input.duracao || 5}s ${tu.input.aspecto || '16:9'}` } });
+        try {
+          const r = comImagem ? await VID.gerarDeImagem(tu.input) : await VID.gerarDeTexto(tu.input);
+          const tipo = comImagem ? 'imagem' : 'texto';
+          const espera = tu.input.aguardar !== false;
+          if (!espera)
+            return result(`Vídeo em produção. task_id: ${r.task_id}. ${r.aviso}\nA geração leva de 1 a 4 minutos — use consultar_video com esse task_id para saber quando ficar pronto. Avise o operador do prazo.`);
+
+          send({ tool: { name: 'gerar_video', label: 'Renderizando — leva de 1 a 4 minutos' } });
+          const s = await VID.aguardar(r.task_id, tipo);
+          if (s.pronto) {
+            send({ ui: { type: 'video', payload: { url: s.url, duracao: s.duracao, resolucao: s.resolucao } } });
+            return result(`VÍDEO PRONTO.\nLink: ${s.url}\nDuração: ${s.duracao}s · Resolução: ${s.resolucao}\n${r.aviso}\n\nEntregue o link ao operador e ofereça abrir no visor. O link é temporário — sugira que ele salve o arquivo se quiser guardar.`);
+          }
+          return result(`${s.msg}\ntask_id: ${r.task_id} (tipo: ${tipo}). Diga ao operador que continua processando e que você avisa quando ele perguntar de novo.`);
+        } catch (e) { return result(`Não consegui gerar o vídeo: ${e.message}`, true); }
+      }
+      case 'consultar_video': {
+        const VID = await import('./video.mjs');
+        send({ tool: { name: 'consultar_video', label: 'Verificando o vídeo' } });
+        try {
+          const s = await VID.consultar(tu.input.task_id, tu.input.tipo || 'texto');
+          if (s.pronto) {
+            send({ ui: { type: 'video', payload: { url: s.url, duracao: s.duracao, resolucao: s.resolucao } } });
+            return result(`VÍDEO PRONTO.\nLink: ${s.url}\nDuração: ${s.duracao}s · Resolução: ${s.resolucao}\nEntregue o link ao operador.`);
+          }
+          if (s.falhou) return result(`A geração falhou: ${s.msg || 'sem detalhe'}. Ofereça tentar de novo, talvez com o prompt ajustado.`, true);
+          return result(`Ainda em produção (estado: ${s.status}). Diga ao operador para aguardar mais um pouco.`);
+        } catch (e) { return result(`Não consegui consultar: ${e.message}`, true); }
+      }
       case 'buscar_api': {
         const termo = String(tu.input.termo || '').trim();
         send({ tool: { name: 'buscar_api', label: `Catálogo de APIs públicas: "${termo}"` } });
@@ -3541,6 +3608,7 @@ DOCUMENTOS (botão DOC) — você é um analista técnico, não um resumidor:
 - Se o documento sustenta uma decisão de peso, ofereça levar ao Conselho.
 
 INVESTIGAÇÃO DE FONTES PRIMÁRIAS — sua vantagem real sobre buscar notícia:
+- gerar_video: cria video com IA a partir de texto ou de uma imagem (SkyReels). Leva de 1 a 4 minutos: AVISE o prazo e nao fique em silencio. Prompt de diretor de fotografia, nao pedido generico. 9:16 para rede social, 16:9 para apresentacao. Na VOZ, confirme em meia frase o que vai gerar antes de disparar, porque consome credito do operador.
 - buscar_api / consultar_api: 796 APIs publicas sem conta nem chave. Antes de dizer que nao consegue um dado publico, procure ali. Atalho mais util no seu dia: CNPJ de empresa em https://brasilapi.com.br/api/cnpj/v1/NUMEROS — razao social, situacao cadastral, CNAE e socios, para qualificar cliente antes da reuniao. Na VOZ, diga so o que importa: nome, situacao e o dado que ele pediu.
 - investigate_news = o que a IMPRENSA já publicou. deep_investigate = onde o fato NASCE antes de virar manchete: licitações do Brasil (PNCP), FATO RELEVANTE de companhia aberta na CVM (fusão, aquisição, venda de operação, OPA — comunicado à CVM antes de chegar à imprensa), filings da SEC EDGAR, imprensa mundial (GDELT), ciência (arXiv) e diários oficiais. Diante de "investiga a fundo", "levanta tudo sobre", "o que está por vir", cliente/concorrente/setor, ou qualquer coisa que possa virar oportunidade de negócio — use deep_investigate, não a busca de notícia.
 - AO RELATAR NA VOZ: separe REGISTRO OFICIAL de COBERTURA DE IMPRENSA, diga primeiro o que ainda NÃO virou notícia (é aí que está o valor), destaque PRAZO com data (licitação encerrando é urgente) e feche com o movimento que aquilo abre para ele. Duas ou três frases; o dossiê completo fica no quadrante.
@@ -3568,7 +3636,7 @@ REGRA CRÍTICA: quando o operador perguntar "quais compromissos tenho?", "tenho 
 }
 
 // ferramentas expostas no modo LIVE (formato Realtime: function calling via data channel)
-const LIVE_TOOL_NAMES = ['agenda_add', 'agenda_update', 'agenda_remove', 'agenda_list', 'memory_save', 'get_weather', 'get_ai_news', 'investigate_news', 'open_website', 'analyze_camera', 'switch_camera', 'enroll_face', 'get_emails', 'read_email', 'read_document', 'wa_list_chats', 'wa_read_chat', 'wa_send_message', 'wa_allow', 'wa_auto_reply', 'wa_find_contact', 'council_review', 'analyze_market', 'portfolio_add', 'portfolio_remove', 'portfolio_view', 'ia_sem_medo', 'open_screen', 'close_screen', 'lottery_result', 'lottery_simulate', 'cyber_scan', 'youtube_watch', 'monitor_play', 'enroll_voice', 'identify_voice', 'deep_investigate', 'watch_add', 'watch_check', 'watch_manage', 'buscar_api', 'consultar_api'];
+const LIVE_TOOL_NAMES = ['agenda_add', 'agenda_update', 'agenda_remove', 'agenda_list', 'memory_save', 'get_weather', 'get_ai_news', 'investigate_news', 'open_website', 'analyze_camera', 'switch_camera', 'enroll_face', 'get_emails', 'read_email', 'read_document', 'wa_list_chats', 'wa_read_chat', 'wa_send_message', 'wa_allow', 'wa_auto_reply', 'wa_find_contact', 'council_review', 'analyze_market', 'portfolio_add', 'portfolio_remove', 'portfolio_view', 'ia_sem_medo', 'open_screen', 'close_screen', 'lottery_result', 'lottery_simulate', 'cyber_scan', 'youtube_watch', 'monitor_play', 'enroll_voice', 'identify_voice', 'deep_investigate', 'watch_add', 'watch_check', 'watch_manage', 'buscar_api', 'consultar_api', 'gerar_video', 'consultar_video'];
 const LIVE_TOOLS = TOOLS
   .filter(t => LIVE_TOOL_NAMES.includes(t.name))
   .map(t => ({ type: 'function', name: t.name, description: t.description, parameters: t.input_schema }));
@@ -4236,6 +4304,27 @@ IMPORTANTE: responda com JSON CRU, sem cercas de código markdown (nada de crase
        precisa desta rota. A consulta roda no SERVIDOR de propósito: a lista de
        permissão contra SSRF e a resolução de DNS não teriam valor se o fetch
        partisse do navegador, onde o operador já alcança a própria rede. */
+    /* Vídeo — rota do modo AO VIVO. A chave da SkyReels fica SÓ aqui: se o
+       navegador chamasse o gateway direto, a chave teria de descer para o
+       cliente e vazaria em qualquer aba de rede aberta. */
+    if (url.pathname === '/api/video') {
+      const VID = await import('./video.mjs');
+      if (!VID.configurado()) return json(res, 200, { erro: 'SKYREELS_API_KEY ausente no .env' });
+      try {
+        if (req.method === 'POST') {
+          const a = JSON.parse(await readBody(req) || '{}');
+          const comImagem = !!(a.imagem || a.imagemFinal);
+          const r = comImagem ? await VID.gerarDeImagem(a) : await VID.gerarDeTexto(a);
+          const tipo = comImagem ? 'imagem' : 'texto';
+          if (a.aguardar === false) return json(res, 200, { task_id: r.task_id, tipo, msg: r.aviso });
+          const s = await VID.aguardar(r.task_id, tipo);
+          return json(res, 200, { task_id: r.task_id, tipo, ...s });
+        }
+        const s = await VID.consultar(url.searchParams.get('task_id'), url.searchParams.get('tipo') || 'texto');
+        return json(res, 200, s);
+      } catch (e) { return json(res, 200, { erro: e.message }); }
+    }
+
     if (url.pathname === '/api/apis') {
       const APIS = await import('./apis.mjs');
       const acao = url.searchParams.get('acao') || 'buscar';

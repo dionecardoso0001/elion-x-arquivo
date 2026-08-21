@@ -847,6 +847,22 @@
            /api/apis?acao=consultar): a proteção contra SSRF só tem valor lá,
            porque daqui o navegador já alcança a rede do operador de qualquer
            forma — proteger no cliente seria teatro. */
+        /* Vídeo. A geração roda no SERVIDOR: a chave da SkyReels vive no .env e
+           não pode descer para o navegador. Aqui só se dispara e se pergunta. */
+        case 'gerar_video': {
+          const r = await fetch('/api/video', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(a) }).then(x => x.json());
+          if (r.erro) return 'Não consegui gerar o vídeo: ' + r.erro;
+          if (r.pronto) { ELX.web?.open?.(r.url, 'Vídeo gerado'); return `Vídeo pronto: ${r.url} · ${r.duracao}s em ${r.resolucao}. Abri no visor. Diga ao operador que o link é temporário e que ele deve salvar se quiser guardar.`; }
+          return `Vídeo em produção (task_id ${r.task_id}). ${r.msg || 'Leva de 1 a 4 minutos.'} Avise o prazo ao operador e ofereça verificar depois.`;
+        }
+        case 'consultar_video': {
+          const r = await fetch(`/api/video?task_id=${encodeURIComponent(a.task_id || '')}&tipo=${encodeURIComponent(a.tipo || 'texto')}`).then(x => x.json());
+          if (r.erro) return 'Não consegui consultar: ' + r.erro;
+          if (r.pronto) { ELX.web?.open?.(r.url, 'Vídeo gerado'); return `Vídeo pronto: ${r.url} · ${r.duracao}s em ${r.resolucao}. Abri no visor.`; }
+          if (r.falhou) return `A geração falhou: ${r.msg || 'sem detalhe'}. Ofereça tentar de novo.`;
+          return `Ainda em produção (${r.status}). Peça um pouco mais de paciência ao operador.`;
+        }
         case 'buscar_api': {
           const q = String(a.termo || '').trim();
           const r = await fetch(`/api/apis?q=${encodeURIComponent(q)}&cat=${encodeURIComponent(a.categoria || '')}`).then(x => x.json());
