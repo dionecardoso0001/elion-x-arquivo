@@ -20,6 +20,7 @@ continuamente temas de interesse — tudo executando **localmente**, na máquina
 ## Índice
 
 - [Como rodar](#como-rodar)
+- [Acesso pelo celular](#acesso-pelo-celular)
 - [Arquitetura](#arquitetura)
 - [Mapa de arquivos](#mapa-de-arquivos)
 - [As 41 capacidades](#as-41-capacidades)
@@ -47,6 +48,46 @@ Abra no **Chrome ou Edge** — o reconhecimento de voz do navegador só existe n
 Clique em **INICIAR SISTEMA** e permita microfone, câmera e localização.
 
 Diagnóstico: `GET /api/status`
+
+---
+
+## Acesso pelo celular
+
+O ELION-X **não roda no celular** — ele roda no PC. O que o celular faz é abrir a
+interface pela rede. Por isso o PC precisa estar ligado e com o servidor no ar.
+
+### O jeito certo: túnel HTTPS (funciona em 4G/5G e em qualquer Wi-Fi)
+
+```bash
+node scripts/mobile.mjs        # ou o atalho "ELION-X Mobile.bat" no Windows
+```
+
+O script sobe o núcleo (se ainda não estiver no ar), abre um túnel HTTPS da
+Cloudflare e mostra um QR Code no navegador do PC. Escaneie com o celular e
+pronto — o link `https://….trycloudflare.com` é acessível de **qualquer rede**,
+inclusive do 4G/5G longe de casa.
+
+Na primeira execução ele baixa o `cloudflared` (~52 MB) para `bin/`. Esse binário
+não é versionado (é pesado demais para o clone), e é por isso que o atalho falhava
+em uma máquina recém-clonada: sem ele, não havia túnel nenhum.
+
+O túnel só existe enquanto a janela ficar aberta, e o endereço muda a cada
+execução. **Enquanto está aberto, o link é público** — quem tiver a URL fala com o
+seu ELION-X, com acesso ao Gmail, WhatsApp e arquivos conectados. Não compartilhe
+e feche a janela ao terminar.
+
+### O jeito limitado: IP local (só dentro de casa)
+
+Com o celular no **mesmo Wi-Fi** do PC, dá para abrir `http://<ip-do-pc>:3001`
+(o `scripts/mobile.mjs` imprime os endereços da máquina ao iniciar). Funciona para
+texto, mas **microfone e câmera não abrem**: o navegador só libera esses recursos em
+HTTPS ou em `localhost`. Voz e visão no celular exigem o túnel.
+
+> Dados móveis do celular **não** alcançam o PC de casa sem o túnel — a operadora usa
+> NAT e não existe rota da internet até a sua máquina. Não é configuração de Wi-Fi.
+
+Se usar Gmail pelo celular, ajuste `PUBLIC_URL` no `.env` para a URL do túnel — o
+callback do OAuth do Google é montado a partir dela.
 
 ---
 
