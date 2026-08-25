@@ -16,6 +16,7 @@
 import http   from 'http';
 import https  from 'https';
 import fs     from 'fs';
+import os     from 'os';
 import path   from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
@@ -3240,6 +3241,32 @@ const readBody = req => new Promise((resolve, reject) => {
 
 const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
 
+/* ── Endereços em que este PC pode ser alcançado por outro aparelho da mesma
+      rede (inclusive quando o PC está no hotspot do celular — aí o celular e o
+      PC ESTÃO na mesma rede e o IP local funciona sem túnel nenhum).
+      `localhost` fica de fora de propósito: num QR ele apontaria o celular
+      para ele mesmo, e a página nunca abriria. ─────────────────────────────── */
+function enderecosLocais() {
+  const out = [];
+  for (const [nome, lista] of Object.entries(os.networkInterfaces())) {
+    for (const ni of lista || []) {
+      if (ni.family !== 'IPv4' || ni.internal) continue;
+      out.push({
+        url: `http://${ni.address}:${PORT}`,
+        ip: ni.address,
+        iface: nome,
+        // 192.168.x / 172.16-31.x / 10.x = rede doméstica ou hotspot do celular
+        privada: /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ni.address),
+      });
+    }
+  }
+  // redes privadas primeiro — são as que um celular na mesma rede alcança
+  return out.sort((a, b) => Number(b.privada) - Number(a.privada));
+}
+
+/* host que só faz sentido dentro do próprio PC — um QR com isto não abre no celular */
+const hostSoLocal = h => /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?)/i.test(String(h || ''));
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   secLog(req, url); // registra p/ o modo Cyber Security (detecção de ataques)
@@ -3833,33 +3860,108 @@ const server = http.createServer(async (req, res) => {
 
     // ── página de QR p/ abrir no celular (QR gerado no navegador, link não vai a terceiros) ──
     if (req.method === 'GET' && url.pathname === '/qr') {
+      /* Montamos a lista de endereços em que o celular REALMENTE alcança este PC.
+         Antes esta página só sabia mostrar o link do túnel: sem ele o QR saía
+         vazio, e um QR apontando para localhost abria o nada no celular. */
       const u = url.searchParams.get('u') || '';
-      const safe = u.replace(/[<>"'`]/g, '');
+      let tunel = null, tunelLocal = false;
+      if (u) {
+        try {
+          const t = new URL(u);
+          if (/^https?:$/.test(t.protocol)) {
+            if (hostSoLocal(t.hostname)) tunelLocal = true;              // não serve p/ celular
+            else tunel = { url: t.origin, tipo: 'tunel', seguro: t.protocol === 'https:' };
+          }
+        } catch { /* link malformado → simplesmente ignorado */ }
+      }
+
+      const alvos = [];
+      if (tunel) alvos.push({ url: tunel.url, rotulo: 'Túnel HTTPS · qualquer rede', seguro: true, tipo: 'tunel' });
+      for (const e of enderecosLocais()) {
+        alvos.push({
+          url: e.url,
+          rotulo: `Rede local · ${e.iface} · ${e.ip}`,
+          seguro: false,
+          tipo: 'lan',
+        });
+      }
+
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ELION-X · Acesso Mobile</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-  body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+  body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:28px 16px;box-sizing:border-box;
     background:radial-gradient(900px 600px at 50% 40%,#04182e,#010810 70%);color:#c9e9f8;font-family:'Segoe UI',sans-serif}
   h1{font-size:26px;letter-spacing:6px;margin:0;color:#eafcff;text-shadow:0 0 24px rgba(0,229,255,.5)}
   h1 b{color:#00e5ff}
-  p{color:#9bd0ee;margin:4px 0;font-size:14px;letter-spacing:1px}
-  #qr{background:#fff;padding:18px;border-radius:16px;box-shadow:0 0 50px rgba(0,229,255,.35)}
-  a{color:#00ff9d;word-break:break-all;font-size:13px;max-width:90vw;text-align:center}
-  .hint{font-size:12px;color:#5a83a0;max-width:340px;text-align:center;line-height:1.6}
+  p{color:#9bd0ee;margin:4px 0;font-size:14px;letter-spacing:1px;text-align:center}
+  #qr{background:#fff;padding:18px;border-radius:16px;box-shadow:0 0 50px rgba(0,229,255,.35);min-width:248px;min-height:248px;
+    display:flex;align-items:center;justify-content:center;color:#04101c;font-size:13px;text-align:center}
+  #alvo{color:#00ff9d;word-break:break-all;font-size:14px;max-width:90vw;text-align:center;cursor:pointer;border:0;background:none;font-family:inherit}
+  .abas{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:min(90vw,560px)}
+  .aba{border:1px solid #16405c;background:#06192b;color:#9bd0ee;padding:7px 13px;border-radius:999px;
+    font-size:12px;cursor:pointer;font-family:inherit;letter-spacing:.5px}
+  .aba.on{border-color:#00e5ff;color:#eafcff;box-shadow:0 0 18px rgba(0,229,255,.35)}
+  .hint{font-size:12px;color:#5a83a0;max-width:420px;text-align:center;line-height:1.7}
+  .alerta{font-size:12.5px;line-height:1.7;max-width:420px;text-align:center;border-radius:12px;padding:11px 15px}
+  .aviso{color:#ffcf6b;background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.28)}
+  .erro{color:#ff9d9d;background:rgba(255,70,70,.08);border:1px solid rgba(255,70,70,.3)}
 </style></head><body>
   <h1>E‑L‑I‑O‑N <b>X</b></h1>
   <p>◈ ESCANEIE COM A CÂMERA DO CELULAR ◈</p>
-  <div id="qr"></div>
-  <a href="${safe}" target="_blank">${safe || 'aguardando link do túnel…'}</a>
-  <div class="hint">Aponte a câmera do seu smartphone para o código acima. O ELION‑X abrirá com voz e câmera funcionando. Mantenha a janela do túnel aberta no PC.</div>
-  <script>
-    var u=${JSON.stringify(safe)};
-    if(u) new QRCode(document.getElementById('qr'),{text:u,width:248,height:248,colorDark:'#04101c',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
-    else document.getElementById('qr').textContent='sem link';
-  </script>
+  <div class="abas" id="abas"></div>
+  <div id="qr">gerando…</div>
+  <button id="alvo" title="clique para copiar">—</button>
+  <div id="ctx"></div>
+  <div class="hint">Aponte a câmera do smartphone para o código. Se a câmera não abrir o link,
+    toque no endereço acima para copiar e cole no navegador do celular.</div>
+<script>
+  var ALVOS = ${JSON.stringify(alvos)};
+  var TUNEL_LOCAL = ${JSON.stringify(tunelLocal)};
+  var i = 0;
+
+  function el(id){ return document.getElementById(id); }
+
+  function contexto(a){
+    var h = '';
+    if (TUNEL_LOCAL) h += '<div class="alerta erro">O link recebido aponta para <b>localhost</b>, que no celular significa "o próprio celular" — por isso não abre. Use um dos endereços abaixo.</div>';
+    if (!ALVOS.length) h += '<div class="alerta erro">Nenhum endereço de rede disponível. O PC parece estar sem rede: conecte-o ao Wi‑Fi (ou ao hotspot do celular) e recarregue esta página.</div>';
+    else if (a.tipo === 'lan') h += '<div class="alerta aviso">Endereço de rede local: o celular precisa estar <b>na mesma rede</b> deste PC — inclusive quando o PC está no <b>hotspot do celular</b>, que é o seu caso. Como não é HTTPS, <b>voz e câmera ficam bloqueadas</b> pelo navegador. Se não abrir, o Firewall do Windows está barrando a porta ${PORT}.</div>';
+    else h += '<div class="alerta aviso">Link do túnel: funciona em qualquer rede, com voz e câmera. Ele <b>muda a cada execução</b> — um QR antigo não abre mais. Mantenha a janela do túnel aberta no PC.</div>';
+    el('ctx').innerHTML = h;
+  }
+
+  function desenhar(){
+    var a = ALVOS[i];
+    el('abas').innerHTML = ALVOS.map(function(t, n){
+      return '<button class="aba' + (n === i ? ' on' : '') + '" data-i="' + n + '">' + t.rotulo + '</button>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('.aba'), function(b){
+      b.onclick = function(){ i = Number(b.dataset.i); desenhar(); };
+    });
+
+    if (!a){ el('qr').textContent = 'sem endereço'; el('alvo').textContent = '—'; return contexto({}); }
+
+    el('alvo').textContent = a.url;
+    el('qr').innerHTML = '';
+    // sem internet no PC a biblioteca do QR não carrega — o endereço em texto continua servindo
+    if (typeof QRCode === 'undefined') el('qr').textContent = 'Sem QR (biblioteca não carregou). Digite o endereço acima no celular.';
+    else new QRCode(el('qr'), { text: a.url, width: 248, height: 248, colorDark: '#04101c', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    contexto(a);
+  }
+
+  el('alvo').onclick = function(){
+    var t = el('alvo').textContent;
+    if (!t || t === '—') return;
+    navigator.clipboard && navigator.clipboard.writeText(t);
+    el('alvo').textContent = 'copiado ✓';
+    setTimeout(function(){ el('alvo').textContent = t; }, 1200);
+  };
+
+  desenhar();
+</script>
 </body></html>`);
     }
 

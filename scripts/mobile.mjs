@@ -130,8 +130,9 @@ function startTunnel(bin) {
     if (!shown) {
       log('\n  ⚠ O túnel ainda não devolveu um link em 60 s.');
       log('    Verifique sua conexão com a internet — o cloudflared precisa');
-      log('    sair para a rede. Enquanto isso, no mesmo Wi-Fi de casa dá');
-      log('    para abrir pelos endereços locais mostrados acima.\n');
+      log('    sair para a rede. Abri a página de QR com os endereços da');
+      log('    rede local, que servem se o celular estiver na mesma rede.\n');
+      abrirNoNavegador(`http://localhost:${PORT}/qr`);
     }
   }, 60000);
 
@@ -187,9 +188,11 @@ function startTunnel(bin) {
   } catch (e) {
     log(`\n  ✗ Não foi possível preparar o túnel: ${e.message}`);
     if (lan.length) {
-      log('\n  ▸ Use por enquanto, do celular no Wi-Fi de casa:');
+      log('\n  ▸ Use por enquanto, do celular na MESMA rede do PC:');
       for (const u of lan) log(`      ${u}`);
-      log('    (o texto funciona; microfone e câmera exigem HTTPS = túnel)\n');
+      log('    (o texto funciona; microfone e câmera exigem HTTPS = túnel)');
+      log('    Abrindo a página de QR com esses endereços...\n');
+      abrirNoNavegador(`http://localhost:${PORT}/qr`);
     }
     process.exitCode = 1;
     return;

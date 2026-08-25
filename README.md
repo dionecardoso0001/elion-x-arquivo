@@ -76,15 +76,31 @@ execução. **Enquanto está aberto, o link é público** — quem tiver a URL f
 seu ELION-X, com acesso ao Gmail, WhatsApp e arquivos conectados. Não compartilhe
 e feche a janela ao terminar.
 
-### O jeito limitado: IP local (só dentro de casa)
+### O jeito limitado: IP local (celular e PC na mesma rede)
 
-Com o celular no **mesmo Wi-Fi** do PC, dá para abrir `http://<ip-do-pc>:3001`
-(o `scripts/mobile.mjs` imprime os endereços da máquina ao iniciar). Funciona para
-texto, mas **microfone e câmera não abrem**: o navegador só libera esses recursos em
-HTTPS ou em `localhost`. Voz e visão no celular exigem o túnel.
+Com o celular no **mesmo Wi-Fi** do PC, dá para abrir `http://<ip-do-pc>:3001`.
+Isso inclui o caso em que **o PC está no hotspot do celular**: aí os dois estão na
+mesma rede, e o IP local funciona sem túnel nenhum.
+
+O atalho **`ELION-X QR.bat`** sobe o núcleo e abre a página `/qr`, que lista todos os
+endereços em que o celular alcança este PC e gera o QR de cada um. Se houver túnel
+aberto, ele aparece como primeira opção.
+
+Funciona para texto, mas **microfone e câmera não abrem**: o navegador só libera
+esses recursos em HTTPS ou em `localhost`. Voz e visão no celular exigem o túnel.
+
+**Se o QR do endereço local não abrir**, quase sempre é o Firewall do Windows
+barrando a porta. Em um PowerShell **como administrador**:
+
+```powershell
+netsh advfirewall firewall add rule name="ELION-X 3001" dir=in action=allow protocol=TCP localport=3001
+```
 
 > Dados móveis do celular **não** alcançam o PC de casa sem o túnel — a operadora usa
 > NAT e não existe rota da internet até a sua máquina. Não é configuração de Wi-Fi.
+
+> Um QR do túnel **não é reutilizável**: o endereço `trycloudflare.com` muda a cada
+> execução, então um QR salvo ou fotografado antes já não abre.
 
 Se usar Gmail pelo celular, ajuste `PUBLIC_URL` no `.env` para a URL do túnel — o
 callback do OAuth do Google é montado a partir dela.
