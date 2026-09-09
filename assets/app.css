@@ -154,6 +154,22 @@ body {
 #clock { font-family: var(--f-hud); font-size: 17px; font-weight: 600; letter-spacing: 2.5px; color: var(--cyan); text-shadow: 0 0 12px var(--cyan-glow); }
 #dateline { font-family: var(--f-mono); font-size: 8.5px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
 
+/* CRACHÁ DE LOCUTOR — quem a biometria vocal está ouvindo agora.
+   Fica ao lado dos LEDs e só aparece quando há alguém falando. */
+#locutor {
+  display: flex; align-items: center; gap: 7px; margin-left: auto; margin-right: 14px;
+  font-family: var(--f-mono); font-size: 9.5px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--cyan); border: 1px solid var(--cyan-dim); border-radius: 999px;
+  padding: 5px 12px; background: rgba(0, 229, 255, .05); white-space: nowrap;
+}
+#locutor i {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  box-shadow: 0 0 8px currentColor; animation: corePulse 1.4s ease-in-out infinite;
+}
+/* sem certeza de quem é: o crachá avisa em âmbar em vez de cravar um nome */
+#locutor.duvida { color: var(--amber); border-color: rgba(255, 196, 77, .25); background: rgba(255, 196, 77, .05); }
+@media (max-width: 900px) { #locutor { display: none; } }
+
 /* título E-L-I-O-N X centralizado na borda do topo */
 .top-title {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);

@@ -23,14 +23,29 @@
 (function () {
   const NB = 20;                 // bandas do espectro médio
   const MIN_F0 = 70, MAX_F0 = 520;
-  /* Limiares calibrados por simulação (ver histórico): com correlação de
-     Pearson + margem sobre o 2º colocado, 0.90/0.03 reconhece ~93% das falas
-     da família e rejeita a maioria das vozes de fora. Subir mais o limiar
-     rejeita melhor estranhos, mas passa a falhar com a própria família. */
-  const SIM_OK = 0.90;           // similaridade mínima p/ AFIRMAR "é fulano"
-  const SIM_DUVIDA = 0.82;       // entre este e SIM_OK → "possivelmente fulano"
-  const MARGEM = 0.03;           // vantagem mínima sobre o 2º colocado
+  /* DUAS PORTAS PARA AFIRMAR UM NOME, não uma só.
+     A régua antiga era puramente absoluta (score ≥ 0.90). O problema: o tom de
+     uma pessoa oscila muito dentro do próprio dia — animada fala mais agudo,
+     cansada mais grave —, e isso derrubava o score da PRÓPRIA dona da voz para
+     ~0.84 mesmo quando o segundo colocado ficava em 0.00. Ou seja: evidência
+     esmagadora, e ainda assim o sistema respondia "não tenho certeza".
+     Agora vale o que a evidência realmente diz:
+       · porta 1 — score alto com vantagem normal sobre o 2º; ou
+       · porta 2 — score razoável com vantagem ESMAGADORA sobre o 2º.
+     Um score de 0.84 sozinho no topo, com 0.80 de folga, é prova muito mais
+     forte que 0.91 empatado com o segundo colocado por 0.03. */
+  const SIM_OK = 0.90;           // porta 1: similaridade alta
+  const MARGEM = 0.03;           // porta 1: vantagem mínima sobre o 2º
+  const SIM_CLARO = 0.78;        // porta 2: similaridade razoável...
+  const MARGEM_FORTE = 0.15;     // ...com folga grande sobre o 2º colocado
+  const SIM_DUVIDA = 0.72;       // abaixo das duas portas → "possivelmente"
   const F0_GATE = 0.38;          // |oitavas| de diferença que já descarta o perfil
+  /* Tolerância de tom DENTRO da mesma pessoa: até ~7% de variação de F0 não
+     penaliza nada (é a oscilação normal da fala), e só depois disso o score
+     começa a cair. Antes, qualquer desvio era punido de imediato. */
+  const F0_LIVRE = 0.10;         // oitavas sem penalidade (~7%)
+  const F0_QUEDA = 0.35;         // oitavas adicionais até zerar o termo de tom
+  const TIMBRE_PISO = 0.50;      // correlação abaixo disto não é evidência de nada
 
   let ctx = null, an = null, srcNode = null, stream = null;
   let timeBuf = null, freqBuf = null;
@@ -76,6 +91,7 @@
     }
   }
   function releaseMic() {
+    stopWatch();                       // sem microfone não há o que analisar
     try { srcNode?.disconnect(); } catch {}
     stream?.getTracks().forEach(t => t.stop());
     stream = null; srcNode = null; an = null;
@@ -179,6 +195,26 @@
     return [f1, f2, f3];
   }
 
+  /* ── impressão vocal a partir de janelas já acumuladas ──
+     Extraído de capture() para que a ESCUTA CONTÍNUA possa montar o mesmo
+     tipo de perfil sem repetir a matemática. */
+  function perfilDe(f0s, specs, f1s, f2s, f3s) {
+    if (!f0s.length || !specs.length) return null;
+    const med = arr => { const s = [...arr].sort((x, y) => x - y); return s[s.length >> 1]; };
+    const f0 = med(f0s);
+    const desvio = Math.sqrt(f0s.reduce((s, v) => s + (v - f0) ** 2, 0) / f0s.length);
+    // espectro médio, normalizado (tira o efeito do volume)
+    const ltas = new Array(NB).fill(0);
+    for (const s of specs) for (let i = 0; i < NB; i++) ltas[i] += s[i] / specs.length;
+    const soma = ltas.reduce((s, v) => s + v, 0) || 1;
+    for (let i = 0; i < NB; i++) ltas[i] /= soma;
+    return {
+      f0, f0dev: desvio,
+      f1: f1s.length ? med(f1s) : 0, f2: f2s.length ? med(f2s) : 0, f3: f3s.length ? med(f3s) : 0,
+      ltas, amostras: f0s.length,
+    };
+  }
+
   /* ═════════ IMPRESSÃO VOCAL ═════════
      Só conta janelas COM voz. Antes de gravar: espera o agente parar de falar
      (senão gravaria a voz DELE) e depois espera a pessoa começar. A contagem é
@@ -213,6 +249,8 @@
     if (suspendeu) { try { ELX.voice.suspendListening(); } catch {} }
     else { try { ELX.voice?.stopSTT?.(); } catch {} }      // reserva p/ versão antiga
     const sttEstava = !suspendeu && !!ELX.voice?.conv;
+    // a escuta contínua usa o MESMO analisador — cede a vez enquanto gravamos
+    pauseWatch();
 
     const f0s = [], specs = [], f1s = [], f2s = [], f3s = [];
     let comecou = false, msComVoz = 0, ultimo = performance.now();
@@ -251,6 +289,7 @@
         if (agora - tInicio > 45000) break;
       }
     } finally {
+      resumeWatch();
       // devolve a escuta exatamente como estava (conversa ou AO VIVO)
       if (suspendeu) { try { ELX.voice.resumeListening(); } catch {} }
       else if (sttEstava) { try { ELX.voice?.startSTT?.(); } catch {} }
@@ -261,20 +300,7 @@
         msg: `só consegui ${f0s.length} trecho(s) de voz — peça para falar continuamente, sem pausas longas` };
     }
 
-    const med = arr => { const s = [...arr].sort((x, y) => x - y); return s[s.length >> 1]; };
-    const f0 = med(f0s);
-    const desvio = Math.sqrt(f0s.reduce((s, v) => s + (v - f0) ** 2, 0) / f0s.length);
-    // espectro médio, normalizado (tira o efeito do volume)
-    const ltas = new Array(NB).fill(0);
-    for (const s of specs) for (let i = 0; i < NB; i++) ltas[i] += s[i] / specs.length;
-    const soma = ltas.reduce((s, v) => s + v, 0) || 1;
-    for (let i = 0; i < NB; i++) ltas[i] /= soma;
-
-    return {
-      f0, f0dev: desvio,
-      f1: f1s.length ? med(f1s) : 0, f2: f2s.length ? med(f2s) : 0, f3: f3s.length ? med(f3s) : 0,
-      ltas, amostras: f0s.length,
-    };
+    return perfilDe(f0s, specs, f1s, f2s, f3s);
   }
 
   /* ── comparação ──
@@ -297,8 +323,16 @@
     // filtro rígido de pitch: fora da faixa da pessoa, nem compara o resto
     const oct = Math.abs(Math.log2((v.f0 || 1) / (perfil.f0 || 1)));
     if (oct > F0_GATE) return 0;
-    const timbre = (pearson(v.ltas, perfil.ltas) + 1) / 2;   // -1..1 → 0..1
-    const pit = Math.max(0, 1 - oct * 3.2);
+    /* ESCALA ÚTIL DO TIMBRE. Mapear Pearson de [-1,1] para [0,1] desperdiçava
+       metade da régua: espectros de voz humana praticamente nunca se
+       anticorrelacionam, então na prática o Pearson vive entre ~0.5 e 1.0 e
+       aquele mapeamento comprimia toda a diferença entre pessoas em [0.75, 1].
+       Uma visita com correlação 0.68 — espectro nitidamente diferente —
+       pontuava 0.84 e chegava perto de receber o nome de alguém da casa.
+       Aqui só a faixa que de fato discrimina é esticada de volta para [0,1]. */
+    const r = pearson(v.ltas, perfil.ltas);
+    const timbre = Math.max(0, (r - TIMBRE_PISO) / (1 - TIMBRE_PISO));
+    const pit = Math.max(0, 1 - Math.max(0, oct - F0_LIVRE) / F0_QUEDA);
     // trato vocal (F3 é o formante mais estável entre vogais diferentes)
     const tv = perfil.f3 && v.f3 ? Math.max(0, 1 - Math.abs(v.f3 - perfil.f3) / 900) : 0.5;
     return timbre * 0.45 + pit * 0.35 + tv * 0.20;
@@ -315,6 +349,142 @@
     if (f0 >= 160) return { tipo: 'mulher', desc: `uma mulher adulta (~${Math.round(f0)} Hz)` };
     if (f0 > 0)    return { tipo: 'homem',  desc: `um homem adulto (~${Math.round(f0)} Hz)` };
     return { tipo: 'indefinido', desc: 'alguém que não consegui caracterizar' };
+  }
+
+  /* ── decisão: dada uma impressão vocal, QUEM é? ──
+     Extraído de identify() para que a escuta contínua use exatamente o mesmo
+     critério — a identificação passiva não pode ser mais frouxa que a ativa.
+
+     `atual` é quem já estava falando: dentro de uma conversa, o normal é a
+     mesma pessoa continuar. Sem essa memória curta o sistema oscilava entre
+     dois nomes de fala em fala, porque cada elocução era julgada do zero.
+     A preferência é DESEMPATE, não voto: vale como um pequeno bônus e só
+     decide quando os scores estão praticamente colados. Outra pessoa com
+     vantagem clara toma o lugar na hora — é o que permite trocar de locutor
+     no meio da conversa sem ter de anunciar nada. */
+  function decidir(v, { atual = null, parcial = false } = {}) {
+    const rank = db.map(p => ({ p, s: similar(v, p) + (atual && p.nome === atual ? 0.02 : 0) }))
+                   .sort((a, b) => b.s - a.s);
+    const melhor = rank[0] || null, segundo = rank[1];
+    const score = melhor ? melhor.s : 0;
+    const margem = melhor && segundo ? melhor.s - segundo.s : 1;
+    const dem = demografia(v);
+    const base = { confianca: +score.toFixed(2), f0: Math.round(v.f0), demografia: dem.tipo, desc: dem.desc, parcial, at: Date.now() };
+
+    const afirma = melhor && ((score >= SIM_OK && margem >= MARGEM) ||
+                              (score >= SIM_CLARO && margem >= MARGEM_FORTE));
+    if (afirma) {
+      return { ...base, ok: true, quem: melhor.p.nome, relacao: melhor.p.relacao };
+    }
+    if (melhor && score >= SIM_DUVIDA) {
+      return { ...base, ok: true, quem: null, possivel: melhor.p.nome,
+               empateCom: segundo && margem < MARGEM ? segundo.p.nome : null };
+    }
+    return { ...base, ok: true, quem: null, desconhecido: true };
+  }
+
+  /* ═════════ ESCUTA CONTÍNUA (identificação em tempo real) ═════════
+     A identificação era SOB DEMANDA: o agente precisava decidir chamar uma
+     ferramenta, que então abria o microfone e pedia que a pessoa falasse DE
+     NOVO. Na prática o agente só fazia isso quando alguém dizia "não sou o
+     Dione" — até lá, respondia a todo mundo como se fosse o operador.
+
+     Aqui o microfone fica sempre analisado em paralelo ao reconhecimento de
+     fala: cada elocução é atribuída a uma pessoa ENQUANTO ela fala, sem
+     ferramenta, sem espera e sem pedir que repita. Quando a frase chega ao
+     agente, o nome de quem falou já vai junto. */
+  const OUVINTES = [];
+  const w = {
+    on: false, timer: 0, pausas: 0,
+    f0s: [], specs: [], f1s: [], f2s: [], f3s: [],
+    msVoz: 0, msSil: 0, ultimo: 0, ultimaAval: 0, emitida: false,
+  };
+  let falante = null;          // quem está (ou acabou de estar) falando
+  const VALIDADE_MS = 12000;   // depois disso a atribuição é velha demais p/ confiar
+
+  function limparElocucao() {
+    w.f0s = []; w.specs = []; w.f1s = []; w.f2s = []; w.f3s = [];
+    w.msVoz = 0; w.msSil = 0; w.ultimaAval = 0; w.emitida = false;
+  }
+
+  function avaliar(parcial) {
+    const v = perfilDe(w.f0s, w.specs, w.f1s, w.f2s, w.f3s);
+    if (!v) return;
+    if (!db.length) return;                       // ninguém cadastrado ainda
+    const r = decidir(v, { atual: falante?.quem || null, parcial });
+    // uma elocução não reconhecida também serve para o cadastro por nome
+    if (r.desconhecido && !parcial) ultimaDesconhecida = { v, at: Date.now() };
+    falante = r;
+    for (const fn of OUVINTES) { try { fn(r); } catch {} }
+  }
+
+  function tick() {
+    if (!w.on || !an) return;
+    const agora = performance.now();
+    const dt = Math.min(agora - w.ultimo, 200);
+    w.ultimo = agora;
+
+    /* Nunca analisar enquanto o próprio agente fala: o que entra no microfone
+       nesse momento é a voz DELE (ou o eco dela), e isso viraria um "locutor"
+       fantasma. O mesmo durante um cadastro/identificação sob demanda, que usa
+       o mesmo analisador. */
+    if (w.pausas > 0 || ELX.voice?.speaking) { limparElocucao(); return; }
+
+    const sr = ctx.sampleRate;
+    an.getFloatTimeDomainData(timeBuf);
+    const p = pitch(timeBuf, sr);
+
+    if (p.f0) {
+      w.msVoz += dt; w.msSil = 0;
+      w.f0s.push(p.f0);
+      w.specs.push(espectro(sr));                 // popula freqBuf...
+      const [a, b, c] = formantes(sr);            // ...que formantes() reaproveita
+      if (a) w.f1s.push(a); if (b) w.f2s.push(b); if (c) w.f3s.push(c);
+
+      /* Palpite ANTECIPADO: com ~450 ms de voz já dá para dizer quem é na
+         maioria dos casos. É isso que faz o nome estar pronto antes mesmo de
+         a pessoa terminar a frase. Vai sendo refinado a cada 350 ms. */
+      if (w.msVoz >= 450 && agora - w.ultimaAval > 350) {
+        w.ultimaAval = agora;
+        avaliar(true);
+        w.emitida = true;
+      }
+    } else {
+      w.msSil += dt;
+      // fim da elocução: veredito final, com todo o material acumulado
+      if (w.msSil > 650 && w.msVoz >= 300) {
+        avaliar(false);
+        limparElocucao();
+      } else if (w.msSil > 1600) {
+        limparElocucao();                          // silêncio longo sem fala útil
+      }
+    }
+  }
+
+  async function startWatch() {
+    if (w.on) return true;
+    if (!(await ensureMic())) return false;
+    if (!db.length) await loadDB();
+    w.on = true; w.ultimo = performance.now();
+    limparElocucao();
+    w.timer = setInterval(tick, 45);
+    return true;
+  }
+  function stopWatch() {
+    w.on = false;
+    clearInterval(w.timer); w.timer = 0;
+    limparElocucao();
+  }
+  /* Pausa reentrante: capture() e o TTS podem pausar ao mesmo tempo, e o
+     primeiro a terminar não pode reativar a análise por conta do outro. */
+  function pauseWatch() { w.pausas++; limparElocucao(); }
+  function resumeWatch() { w.pausas = Math.max(0, w.pausas - 1); w.ultimo = performance.now(); }
+
+  /** quem está falando AGORA, se a atribuição ainda for recente */
+  function falanteAtual() {
+    if (!falante) return null;
+    if (Date.now() - falante.at > VALIDADE_MS) return null;
+    return falante;
   }
 
   /* ═════════ API ═════════ */
@@ -379,39 +549,29 @@
 
   /** identifica quem está falando agora */
   async function identify(ms = 2000) {
-    // identificar é passivo: espera pouco pela voz, para não travar a conversa
+    /* ATALHO: se a escuta contínua acabou de atribuir a fala, a resposta já
+       existe — devolvemos na hora. Antes, mesmo com a pessoa tendo acabado de
+       falar, esta chamada reabria o microfone e ficava até 8 s esperando que
+       ela falasse OUTRA vez; é daí que vinha a demora que fazia o agente
+       "pensar muito" antes de saber com quem falava. */
+    const jaSei = falanteAtual();
+    if (jaSei && !jaSei.parcial && Date.now() - jaSei.at < 6000) return jaSei;
+
+    // sem escuta contínua disponível: caminho antigo, capturando na hora
     const v = await capture({ falaMs: Math.max(ms, 1500), esperaVozMs: 8000, minAmostras: 6 });
     if (v?.erro) return { ok: false, quem: null, erro: v.erro, msg: v.msg };
     if (!v) return { ok: false, quem: null, msg: 'não captei voz' };
     if (!db.length) await loadDB();
 
-    // ranqueia todos os perfis: precisamos do 2º colocado para exigir margem
-    const rank = db.map(p => ({ p, s: similar(v, p) })).sort((a, b) => b.s - a.s);
-    const melhor = rank[0] || null, segundo = rank[1];
-    const score = melhor ? melhor.s : 0;
-    const margem = melhor && segundo ? melhor.s - segundo.s : 1;
-    const dem = demografia(v);
-
-    /* Só AFIRMA o nome com score alto E vantagem clara sobre o 2º. Sem a
-       margem, duas pessoas de voz parecida (irmãos de idade próxima) fariam
-       o sistema cravar um nome no cara ou coroa. */
-    if (melhor && score >= SIM_OK && margem >= MARGEM) {
-      return { ok: true, quem: melhor.p.nome, relacao: melhor.p.relacao, confianca: +score.toFixed(2), f0: Math.round(v.f0), demografia: dem.tipo };
-    }
-    if (melhor && score >= SIM_DUVIDA) {
-      const empate = segundo && margem < MARGEM ? segundo.p.nome : null;
-      return {
-        ok: true, quem: null, possivel: melhor.p.nome, empateCom: empate,
-        confianca: +score.toFixed(2), f0: Math.round(v.f0), demografia: dem.tipo, desc: dem.desc,
-      };
-    }
+    const r = decidir(v, { atual: falante?.quem || null });
     /* Guarda a voz desconhecida que ACABOU de ser ouvida. É o que permite o
        fluxo natural: "não conheço essa voz" → "com quem tenho o prazer?" →
        "sou a Maria" → cadastrar a Maria com a voz JÁ CAPTURADA, sem pedir
        que ela fale de novo. Validade curta: 3 min — depois disso não há
        garantia de que quem falou por último é a mesma pessoa. */
-    ultimaDesconhecida = { v, at: Date.now() };
-    return { ok: true, quem: null, desconhecido: true, confianca: +score.toFixed(2), f0: Math.round(v.f0), demografia: dem.tipo, desc: dem.desc };
+    if (r.desconhecido) ultimaDesconhecida = { v, at: Date.now() };
+    falante = r;
+    return r;
   }
 
   /** frase pronta para o agente saber com quem está falando */
@@ -426,10 +586,29 @@
     return `Quem está falando: NÃO é ninguém cadastrado. Pela voz é ${r.desc}. Trate com cordialidade e, se fizer sentido, pergunte quem é.`;
   }
 
+  /** etiqueta curta de locutor, para viajar junto com a frase até o agente */
+  function rotulo(r) {
+    if (!r || !r.ok) return '';
+    const pct = Math.round((r.confianca || 0) * 100);
+    if (r.quem) return `${r.quem}${r.relacao ? ' (' + r.relacao + ')' : ''} — voz reconhecida, ${pct}% de confiança`;
+    if (r.possivel) {
+      return r.empateCom
+        ? `INCERTO — pode ser ${r.possivel} ou ${r.empateCom} (${pct}%). Pela voz é ${r.desc}. NÃO chute o nome`
+        : `INCERTO — possivelmente ${r.possivel} (${pct}%). Pela voz é ${r.desc}. NÃO afirme o nome sem confirmar`;
+    }
+    return `NÃO CADASTRADO — pela voz é ${r.desc}. Não invente nome`;
+  }
+
+  /** avisa a interface a cada nova atribuição de locutor */
+  function onFalante(fn) { if (typeof fn === 'function') OUVINTES.push(fn); }
+
   loadDB();
 
   ELX.voiceid = {
-    enroll, identify, capture, descrever, demografia,
+    enroll, identify, capture, descrever, demografia, rotulo,
+    // escuta contínua
+    startWatch, stopWatch, pauseWatch, resumeWatch, falanteAtual, onFalante,
+    get vigiando() { return w.on; },
     get perfis() { return db.map(p => ({ nome: p.nome, relacao: p.relacao, f0: Math.round(p.f0), amostras: (p.amostras || []).length })); },
     reload: loadDB, release: releaseMic,
   };

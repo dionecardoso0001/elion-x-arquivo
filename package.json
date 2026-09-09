@@ -7,7 +7,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test:voz": "node scripts/teste-biometria-vocal.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

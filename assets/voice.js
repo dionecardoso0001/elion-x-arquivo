@@ -306,6 +306,11 @@
        então o retorno normal continua funcionando. */
     if (listenSuspended) return;
     if (sttActive) return;
+    /* BIOMETRIA EM PARALELO. A identificação do locutor deixou de ser uma
+       ferramenta que o agente decide chamar depois: ela roda junto com o
+       reconhecimento de fala, do primeiro instante, para que o nome de quem
+       falou já esteja pronto quando a frase for enviada. */
+    ELX.voiceid?.startWatch?.();
     rec = new SR();
     rec.lang = 'pt-BR';
     rec.interimResults = true;
@@ -329,7 +334,8 @@
       cmd.value = '';
       cmd.placeholder = 'transmita seu comando, Senhor…';
       if (t) {
-        ELX.agent?.send(t);
+        // quem falou esta frase — apurado enquanto ela era dita, sem custo de tempo
+        ELX.agent?.send(t, { falante: ELX.voiceid?.falanteAtual?.() || null });
       } else if (conv.on) {
         // silêncio — religa a escuta para manter a conversa aberta
         if (ELX.state === 'listening') setTimeout(() => { if (conv.on && !sttActive && ELX.state === 'listening') startSTT(); }, 350);
@@ -437,6 +443,7 @@
     micBtn.title = 'modo conversa (escuta contínua com interrupção)';
     stopSTT();
     vadStop();
+    ELX.voiceid?.stopWatch?.();
     if (ELX.state === 'listening') ELX.setState('idle');
   }
   micBtn.addEventListener('click', () => (conv.on ? convStop() : convStart()));
@@ -986,6 +993,7 @@
     suspendedConv = conv.on;
     suspendedLive = live.on;
     stopSTT();
+    ELX.voiceid?.pauseWatch?.();                               // não analisar áudio de vídeo/cadastro
     if (conv.on) vadStop();                                    // solta o tap isolado do mic
     if (live.on && live.mic) live.mic.getTracks().forEach(t => t.enabled = false); // corta o envio, mantém a sessão
     if (ELX.state === 'listening') ELX.setState('idle');
@@ -993,6 +1001,7 @@
   function resumeListening() {
     if (!listenSuspended) return;
     listenSuspended = false;
+    ELX.voiceid?.resumeWatch?.();
     if (suspendedConv && conv.on) { vadStart(); if (ELX.state === 'idle') startSTT(); }
     if (suspendedLive && live.on && live.mic) live.mic.getTracks().forEach(t => t.enabled = true);
   }

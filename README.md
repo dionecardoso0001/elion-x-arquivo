@@ -153,7 +153,7 @@ Resposta falada + exibida
 | `assets/avatar.js` | 765 | Avatar holográfico e movimento labial por formantes |
 | `assets/agent.js` | 535 | Cliente do laço agêntico e eventos de interface |
 | `assets/cyber.css` | 478 | Estilo do painel de segurança |
-| `assets/voiceid.js` | 436 | Biometria vocal — captura, pitch, LTAS, identificação |
+| `assets/voiceid.js` | 615 | Biometria vocal — escuta contínua, pitch, LTAS, identificação |
 | `index.html` | 363 | Estrutura da interface |
 | `wa.mjs` | 360 | Integração WhatsApp |
 | `intel.mjs` | 289 | Investigação em fontes primárias |
@@ -187,8 +187,17 @@ Resposta falada + exibida
 | `switch_camera` | Alterna entre webcam integrada e câmera externa |
 | `enroll_face` | Memoriza biometricamente o rosto de uma pessoa |
 | `enroll_voice` | Cadastra a voz; aceita aproveitar a voz recém-ouvida de um desconhecido |
-| `identify_voice` | Diz quem está falando; se for de fora, informa o perfil demográfico |
+| `identify_voice` | Rede de segurança: só é chamada quando a fala chega sem etiqueta de locutor |
 </details>
+
+> **A identificação de locutor não é uma ferramenta — é contínua.** Enquanto a pessoa
+> fala, `voiceid.js` analisa o microfone em paralelo ao reconhecimento de fala e
+> atribui a elocução a alguém da casa. A frase chega ao agente já com
+> `[QUEM FALA: …]` na primeira linha, então ele responde pelo nome certo desde a
+> primeira palavra, sem chamar ferramenta e sem pedir que ninguém repita nada.
+> O crachá no topo da tela mostra quem está sendo ouvido.
+>
+> Regressões dessa lógica são travadas por `npm run test:voz`.
 
 <details>
 <summary><b>Investigação e vigilância</b> (7)</summary>

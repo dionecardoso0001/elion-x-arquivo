@@ -45,10 +45,12 @@
   }
   function scrollDown() { consoleMsgs.scrollTop = consoleMsgs.scrollHeight; }
 
-  function addUser(text) {
+  function addUser(text, quem) {
     const el = document.createElement('div');
     el.className = 'msg user';
-    el.innerHTML = `<div class="who">OPERADOR</div><div class="body"></div>`;
+    el.innerHTML = `<div class="who"></div><div class="body"></div>`;
+    // o console mostra QUEM falou, não um "OPERADOR" genérico para todo mundo
+    el.querySelector('.who').textContent = (quem || 'OPERADOR').toUpperCase();
     el.querySelector('.body').textContent = text;
     consoleMsgs.appendChild(el); scrollDown();
   }
@@ -241,14 +243,19 @@
     send(text, { silent: true });
   }
 
-  async function send(text, { silent = false } = {}) {
+  async function send(text, { silent = false, falante = null } = {}) {
     text = (text || '').trim();
     if (!text) return;
     if (busy) { pendingSend = text; currentCtl?.abort(); return; } // barge-in com fala nova
     busy = true;
     ELX.voice.stop();
-    if (!silent) addUser(text);
-    history.push({ role: 'user', content: text });
+    if (!silent) addUser(text, falante?.quem);
+
+    /* ETIQUETA DE LOCUTOR — vai colada à frase, não como ferramenta.
+       O agente sabe de quem é a voz no MESMO instante em que lê o texto, então
+       responde já pelo nome certo, sem precisar parar para investigar. */
+    const marca = falante ? ELX.voiceid?.rotulo?.(falante) : '';
+    history.push({ role: 'user', content: marca ? `[QUEM FALA: ${marca}]\n${text}` : text });
     compactHistory();
     ELX.setState('thinking');
     const bubble = newAiBubble();
@@ -330,6 +337,21 @@
     currentCtl?.abort();
     ELX.voice.stop();
   }
+
+  /* ── crachá de locutor: mostra na tela quem a biometria está ouvindo ──
+     Some sozinho depois de um tempo sem fala, para não deixar um nome
+     antigo no ar dando a impressão de que aquela pessoa ainda está lá. */
+  let sumirLocutor = 0;
+  ELX.voiceid?.onFalante?.(r => {
+    const box = $('locutor'), nome = $('locutorNome');
+    if (!box || !nome) return;
+    clearTimeout(sumirLocutor);
+    if (r.quem)          { nome.textContent = r.quem;                    box.classList.remove('duvida'); }
+    else if (r.possivel) { nome.textContent = r.possivel + ' ?';         box.classList.add('duvida'); }
+    else                 { nome.textContent = 'voz não cadastrada';      box.classList.add('duvida'); }
+    box.hidden = false;
+    sumirLocutor = setTimeout(() => { box.hidden = true; }, 15000);
+  });
 
   ELX.agent = { send, history, interrupt };
 
